@@ -1,0 +1,90 @@
+<Window x:Class="DownloaderApp.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DownloaderApp.Views"
+        xmlns:vm="clr-namespace:DownloaderApp.ViewModels"
+        xmlns:infra="clr-namespace:DownloaderApp.Infrastructure"
+        mc:Ignorable="d"
+        Title="Настройки" 
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <GroupBox Header="Общие" Margin="0,0,0,10">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Grid.Row="0" Grid.Column="0" Content="_User ID:" Target="{Binding ElementName=txtUserId}"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="txtUserId" Text="{Binding EditableSettings.UserId}" Margin="5"/>
+
+                    <Label Grid.Row="0" Grid.Column="2" Content="_Process ID:" Target="{Binding ElementName=txtProcessId}"/>
+                    <TextBox Grid.Row="0" Grid.Column="3" x:Name="txtProcessId" Text="{Binding EditableSettings.ProcessId}" Margin="5"/>
+
+                    <Label Grid.Row="1" Grid.Column="0" Content="_Пауза (мс):" Target="{Binding ElementName=txtSleep}"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="txtSleep" Text="{Binding EditableSettings.SleepIntervalMilliseconds}" Margin="5"/>
+                    
+                    <Label Grid.Row="1" Grid.Column="2" Content="_Потоки:" Target="{Binding ElementName=txtParallel}"/>
+                    <TextBox Grid.Row="1" Grid.Column="3" x:Name="txtParallel" Text="{Binding EditableSettings.MaxParallelDownloads}" Margin="5"/>
+                </Grid>
+            </GroupBox>
+            
+             <GroupBox Header="FTP" Margin="0,0,0,10">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="80"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Grid.Row="0" Grid.Column="0" Content="_Хост:" Target="{Binding ElementName=txtFtpHost}"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="txtFtpHost" Text="{Binding EditableSettings.FtpHost}" Margin="5"/>
+
+                    <Label Grid.Row="0" Grid.Column="2" Content="_Порт:" Target="{Binding ElementName=txtFtpPort}"/>
+                    <TextBox Grid.Row="0" Grid.Column="3" x:Name="txtFtpPort" Text="{Binding EditableSettings.FtpPort}" Margin="5"/>
+
+                    <Label Grid.Row="1" Grid.Column="0" Content="_Пользователь:" Target="{Binding ElementName=txtFtpUser}"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="txtFtpUser" Text="{Binding EditableSettings.FtpUsername}" Margin="5"/>
+                    
+                    <Label Grid.Row="1" Grid.Column="2" Content="_Пароль:" Target="{Binding ElementName=pbFtpPassword}"/>
+                    <PasswordBox Grid.Row="1" Grid.Column="3" x:Name="pbFtpPassword" Margin="5"
+                                 infra:PasswordBoxHelper.BindPassword="True"
+                                 infra:PasswordBoxHelper.BoundPassword="{Binding EditableSettings.FtpPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                     <CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Content="Использовать _SSL/TLS" IsChecked="{Binding EditableSettings.FtpUseSsl}" VerticalAlignment="Center" Margin="5"/>
+                     <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Content="Проверять _сертификат" IsChecked="{Binding EditableSettings.FtpValidateCertificate}" VerticalAlignment="Center" Margin="5"/>
+                 </Grid>
+            </GroupBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="_Сохранить" Command="{Binding SaveCommand}" IsDefault="True" MinWidth="80" Margin="0,0,10,0"/>
+            <Button Content="_Отмена" Command="{Binding CancelCommand}" IsCancel="True" MinWidth="80"/>
+        </StackPanel>
+    </Grid>
+</Window> 
