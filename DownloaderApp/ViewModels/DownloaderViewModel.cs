@@ -372,7 +372,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             // Добавляем информацию о пути, если он был определен и что-то обработано
             if (processedFilesCounter > 0 && !string.IsNullOrEmpty(basePath))
             {
-                finalStatus += $" Файлы сохранены в: {basePath}\\\..."; // Добавляем к статусу
+                finalStatus += $" Файлы сохранены в: {basePath}\\...";
                 AddLogMessage($"Успешно обработанные файлы сохранены в подпапки директории: {basePath}"); // Добавляем в лог
             }
             else if (processedFilesCounter > 0 && srcID != 0)
