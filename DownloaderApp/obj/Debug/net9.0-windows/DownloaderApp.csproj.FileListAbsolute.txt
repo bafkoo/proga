@@ -248,3 +248,4 @@ E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\refint\DownloaderA
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.pdb
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.genruntimeconfig.cache
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\ref\DownloaderApp.dll
+C:\Users\Krasoft2025\Desktop\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.sourcelink.json
