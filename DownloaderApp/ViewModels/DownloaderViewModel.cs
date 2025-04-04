@@ -440,21 +440,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         string fileDocument = "";
         string pathDocument = "";
 
+        // Логика определения пути (проверьте!)
         if (srcID == 2)
         {
-            pathDocument = pthDocument;
-            fileDocument = Path.Combine(pathDocument, flDocumentOriginal);
+            pathDocument = $@"\\{computerName}\{directoryName}\{themeId}\{publishDate.Year}\{publishDate.Month}\{publishDate.Day}"; // Используем @
+            fileDocument = Path.Combine(pathDocument, $"{documentMetaID}{suffixName}.{expName}");
         }
-        if (srcID == 1)
+        else if (srcID == 1)
         {
-            pathDocument = pthDocument; // Локальная временная папка
-            fileDocument = Path.Combine(pathDocument, fileNameFtp);
+            // Путь для временного хранения перед FTP? Или конечный?
+            pathDocument = $@"\\{computerName}\{directoryName}\{themeId}\{publishDate.Year}\{publishDate.Month}\{publishDate.Day}"; // Используем @
+            fileDocument = Path.Combine(pathDocument, fileNameFtp); // Имя файла для FTP = локальное имя?
         }
-        if (srcID == 0)
+        else // srcID == 0
         {
-             pathDocument = Path.Combine($@"\{computerName}", directoryName, themeId.ToString(), publishDate.Year.ToString(), publishDate.Month.ToString(), publishDate.Day.ToString());
-             string fileNameOnly = $"{documentMetaID}{suffixName}.{expName}";
-             fileDocument = Path.Combine(pathDocument, fileNameOnly);
+            pathDocument = $@"\\{computerName}\{directoryName}\{themeId}\{publishDate.Year}\{publishDate.Month}\{publishDate.Day}"; // Используем @
+            fileDocument = Path.Combine(pathDocument, $"{documentMetaID}{suffixName}.{expName}");
         }
 
          // Проверка валидности пути перед использованием
