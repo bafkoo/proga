@@ -22,6 +22,9 @@ namespace DownloaderApp
             FileLogger.Initialize(); 
             FileLogger.Log("Приложение запускается...");
 
+            // Добавляем обработчик необработанных исключений UI-потока
+            this.DispatcherUnhandledException += App_DispatcherUnhandledException;
+
             // Загружаем конфигурацию
             try
             {
@@ -43,8 +46,33 @@ namespace DownloaderApp
             base.OnStartup(e);
 
             // Просто создаем и показываем окно БЕЗ дополнительных try-catch и логирования здесь
-            var mainWindow = new Views.MainWindow();
-            mainWindow.Show();
+            // Обернем создание и показ окна в try-catch для логирования возможных ошибок инициализации
+            try
+            {
+                var mainWindow = new Views.MainWindow();
+                mainWindow.Show();
+                FileLogger.Log("MainWindow создано и показано."); // Добавим лог после Show()
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Log($"КРИТИЧЕСКАЯ ОШИБКА при создании/отображении MainWindow: {ex}");
+                MessageBox.Show($"Критическая ошибка при инициализации главного окна: {ex.Message}", "Ошибка UI", MessageBoxButton.OK, MessageBoxImage.Error);
+                Shutdown(-1);
+            }
+        }
+
+        private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            // Логируем необработанное исключение
+            FileLogger.Log($"НЕОБРАБОТАННОЕ ИСКЛЮЧЕНИЕ UI: {e.Exception}");
+
+            // Показываем сообщение пользователю (опционально, но полезно для отладки)
+            MessageBox.Show($"Произошла необработанная ошибка: {e.Exception.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            // Предотвращаем аварийное завершение приложения (установите в true, если хотите попробовать продолжить работу)
+            // В данном случае лучше завершить приложение, т.к. ошибка может быть критической
+            e.Handled = false; // Оставляем false, чтобы приложение завершилось после сообщения
+            Shutdown(-1); // Принудительное завершение после логирования и сообщения
         }
 
         // Можно настроить создание ViewModel здесь, если использовать IoC контейнер

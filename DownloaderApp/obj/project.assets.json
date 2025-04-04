@@ -2363,23 +2363,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Krasoft2025\\.nuget\\packages\\": {},
+    "C:\\Users\\rasta\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Krasoft2025\\Desktop\\proga\\DownloaderApp\\DownloaderApp.csproj",
+      "projectUniqueName": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
       "projectName": "DownloaderApp",
-      "projectPath": "C:\\Users\\Krasoft2025\\Desktop\\proga\\DownloaderApp\\DownloaderApp.csproj",
-      "packagesPath": "C:\\Users\\Krasoft2025\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Krasoft2025\\Desktop\\proga\\DownloaderApp\\obj\\",
+      "projectPath": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
+      "packagesPath": "C:\\Users\\rasta\\.nuget\\packages\\",
+      "outputPath": "E:\\Projects JAva\\proga\\DownloaderApp\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\Krasoft2025\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\rasta\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
