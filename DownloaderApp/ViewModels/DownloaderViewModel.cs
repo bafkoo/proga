@@ -273,6 +273,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         long processedFilesCounter = 0;
         IProgress<double> progressReporter = null;
+        string basePath = null; // Переменная для хранения базового пути
 
         try
         {
@@ -288,6 +289,23 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         dtTab = await FetchFileListAsync(conBase, BeginDate, EndDate, themeId, srcID, SelectedFilterId, flProv, token);
                         TotalFiles = dtTab?.Rows.Count ?? 0;
                         AddLogMessage($"Получено {TotalFiles} файлов для обработки.");
+
+                        // Получаем базовый путь, если есть файлы и srcID=0 (для других srcID путь формируется иначе)
+                        if (TotalFiles > 0 && srcID == 0)
+                        {
+                            try
+                            {
+                                string computerName = dtTab.Rows[0]["computerName"]?.ToString();
+                                string directoryName = dtTab.Rows[0]["directoryName"]?.ToString();
+                                if (!string.IsNullOrEmpty(computerName) && !string.IsNullOrEmpty(directoryName))
+                                {
+                                    basePath = $"\\\\{computerName}\\{directoryName}"; // Используем @ для буквальной строки или двойные слеши
+                                    AddLogMessage($"Базовый путь для сохранения: {basePath}");
+                                }
+                                else { AddLogMessage("Не удалось определить базовый путь (computerName/directoryName пусты)."); }
+                            }
+                            catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
+                        }
                     }
 
                     if (dtTab == null || TotalFiles == 0 || token.IsCancellationRequested)
@@ -346,8 +364,24 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         finally
         {
             IsDownloading = false;
-            if (string.IsNullOrEmpty(StatusMessage) || StatusMessage == "Загрузка...")
-            { StatusMessage = success ? "Загрузка завершена." : "Загрузка завершена с ошибками."; }
+            string finalStatus = "";
+            if (token.IsCancellationRequested) { finalStatus = "Операция отменена пользователем."; }
+            else if (StatusMessage == "Критическая ошибка." || StatusMessage == "Ошибка подключения/списка.") { finalStatus = StatusMessage; } // Оставляем сообщение об ошибке
+            else { finalStatus = success ? "Загрузка завершена." : "Загрузка завершена с ошибками."; }
+
+            // Добавляем информацию о пути, если он был определен и что-то обработано
+            if (processedFilesCounter > 0 && !string.IsNullOrEmpty(basePath))
+            {
+                finalStatus += $" Файлы сохранены в: {basePath}\\\..."; // Добавляем к статусу
+                AddLogMessage($"Успешно обработанные файлы сохранены в подпапки директории: {basePath}"); // Добавляем в лог
+            }
+            else if (processedFilesCounter > 0 && srcID != 0)
+            {
+                 // Для других srcID (FTP, Локальный) путь может быть другим, просто сообщим о завершении
+                 AddLogMessage($"Обработка файлов для источника ID={srcID} завершена.");
+            }
+
+            StatusMessage = finalStatus; // Устанавливаем итоговый статус
             CurrentFileName = "";
             _cancellationTokenSource?.Dispose(); _cancellationTokenSource = null;
             (StartDownloadCommand as RelayCommand)?.RaiseCanExecuteChanged();
