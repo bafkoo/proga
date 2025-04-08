@@ -103,7 +103,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     public ThemeInfo SelectedTheme
     {
         get => _selectedTheme;
-        set => SetProperty(ref _selectedTheme, value);
+        set 
+        {
+            if (SetProperty(ref _selectedTheme, value))
+            {
+                 // Force re-evaluation of the StartDownloadCommand's CanExecute when the theme changes
+                 if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
+            }
+        }
     }
 
     // --- НОВЫЕ Свойства для UI Тем MahApps ---
@@ -1489,11 +1496,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         try
         {
             // Загружаем строки подключения как есть
+            _baseConnectionString = App.Configuration.GetConnectionString("BaseConnection");
             _iacConnectionString = App.Configuration.GetConnectionString("IacConnection");
             _serverOfficeConnectionString = App.Configuration.GetConnectionString("ServerOfficeConnection");
-            string defaultConnectionString = App.Configuration.GetConnectionString("DefaultConnection"); // Временная переменная
-
-            AddLogMessage($"LoadConfigurationAndSettings: _serverOfficeConnectionString = '{_serverOfficeConnectionString}'", "Info"); // Добавлено
+            // Added logging to check the retrieved value
+            FileLogger.Log($"Retrieved BaseConnectionString: '{_baseConnectionString}'"); 
+            FileLogger.Log($"Retrieved IacConnectionString: '{_iacConnectionString}'"); // Also log the other connection strings for comparison
+            FileLogger.Log($"Retrieved ServerOfficeConnectionString: '{_serverOfficeConnectionString}'");
 
             // Проверяем наличие ServerOfficeConnection, так как он теперь базовый
             if (string.IsNullOrEmpty(_serverOfficeConnectionString))
@@ -1511,6 +1520,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 AddLogMessage($"LoadConfigurationAndSettings: Базовая строка подключения установлена на сервер: {baseServer} (из ServerOfficeConnection)");
                 AddLogMessage($"LoadConfigurationAndSettings: _baseConnectionString = '{_baseConnectionString}'", "Info"); // Добавлено
                 
+                // Fetch DefaultConnection here to use it in the warning check below
+                string defaultConnectionString = App.Configuration.GetConnectionString("DefaultConnection"); 
+
                 // Если DefaultConnection существует и отличается от базового, логируем предупреждение
                 if (!string.IsNullOrEmpty(defaultConnectionString))
                 {
