@@ -8,7 +8,7 @@
         xmlns:converters="clr-namespace:FileDownloader.Converters"
         xmlns:metro="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
-        Title="File Downloader" Height="650" Width="800"
+        Title="File Downloader" Height="650" Width="800" MinWidth="600" MinHeight="500"
         WindowStartupLocation="CenterScreen">
     
     <Window.Resources>
@@ -101,38 +101,44 @@
         <GroupBox Grid.Row="0" Header="Параметры загрузки" Margin="5">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" Margin="5">
-                    <TextBlock Text="База данных:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox Width="150" ItemsSource="{Binding AvailableDatabases}" 
-                            SelectedItem="{Binding SelectedDatabase}" Margin="0,0,10,0"/>
-                    
-                    <TextBlock Text="Тема:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox Width="150" ItemsSource="{Binding AvailableThemes}" 
-                            SelectedItem="{Binding SelectedTheme}" Margin="0,0,10,0"/>
+                <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Vertical" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="База данных:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox MinWidth="150" ItemsSource="{Binding AvailableDatabases}" 
+                                SelectedItem="{Binding SelectedDatabase}" Margin="0,0,10,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,0">
+                        <TextBlock Text="Тема:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox MinWidth="150" ItemsSource="{Binding AvailableThemes}" 
+                                SelectedItem="{Binding SelectedTheme}" Margin="0,0,10,0"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Grid.Row="0" Orientation="Horizontal" Margin="5">
-                    <TextBlock Text="Начальная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <DatePicker Width="120" SelectedDate="{Binding BeginDate}" Margin="0,0,10,0"/>
-                    
-                    <TextBlock Text="Конечная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <DatePicker Width="120" SelectedDate="{Binding EndDate}" Margin="0,0,10,0"/>
+                <StackPanel Grid.Column="1" Grid.Row="0" Orientation="Vertical" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="Начальная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <DatePicker MinWidth="120" SelectedDate="{Binding BeginDate}" Margin="0,0,10,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,0">
+                        <TextBlock Text="Конечная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <DatePicker MinWidth="120" SelectedDate="{Binding EndDate}" Margin="0,0,10,0"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Horizontal" Margin="5">
+                <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Vertical" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <CheckBox Content="Проверять ошибки" IsChecked="{Binding CheckProvError}" 
-                            VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            HorizontalAlignment="Center" Margin="0,0,0,5"/>
                     <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" 
-                            Margin="0,0,5,0">
+                            HorizontalAlignment="Center">
                         <Button.ToolTip>
                             <ToolTip Content="Открыть настройки приложения"/>
                         </Button.ToolTip>
@@ -141,7 +147,7 @@
 
                 <Button Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="3" 
                         Content="Начать загрузку" Command="{Binding StartDownloadCommand}"
-                        Margin="5" Height="30"/>
+                        Margin="5" Height="30" Width="200" HorizontalAlignment="Center"/>
             </Grid>
         </GroupBox>
 
@@ -172,17 +178,17 @@
                             <ToolTip Content="Сохранить лог в файл"/>
                         </Button.ToolTip>
                     </Button>
-                    <ComboBox Width="150" ItemsSource="{Binding LogFilterTypes}" 
+                    <ComboBox MinWidth="150" ItemsSource="{Binding LogFilterTypes}" 
                             SelectedItem="{Binding SelectedLogFilterType}" 
                             DisplayMemberPath="DisplayName" Margin="5,0,0,0"/>
                 </StackPanel>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding FilteredLogMessages}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Message}" Style="{StaticResource LogMessageStyle}" 
-                                        Margin="5,2"/>
+                                        Margin="5,2" TextWrapping="Wrap"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -193,7 +199,7 @@
         <!-- Строка состояния -->
         <StatusBar Grid.Row="2">
             <StatusBarItem>
-                <TextBlock Text="{Binding Status}"/>
+                <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <ProgressBar Width="100" Height="15" IsIndeterminate="True" 

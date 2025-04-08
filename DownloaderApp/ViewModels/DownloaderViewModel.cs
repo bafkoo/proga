@@ -1457,7 +1457,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                using (var command = new SqlCommand("SELECT ThemeID, Name FROM Theme", connection)) 
+                using (var command = new SqlCommand("SELECT ThemeID, themeName FROM Theme", connection)) // Используем правильное имя столбца themeName
                 {
                     using (var reader = command.ExecuteReader())
                     {
@@ -1466,8 +1466,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         {
                             themes.Add(new ThemeInfo
                             {
-                                Id = reader.GetInt32(0),
-                                Name = reader.GetString(1)
+                                Id = reader.GetInt32(0), // ThemeID - индекс 0
+                                Name = reader.GetString(1) // themeName - индекс 1 (остается прежним)
                             });
                         }
                         SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes));
