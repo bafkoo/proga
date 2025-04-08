@@ -160,8 +160,16 @@
                                    Maximum="{Binding TotalFiles}" Margin="0,0,0,10"/>
                     </StackPanel>
 
+                    <!-- Start Download Button -->
                     <Button Grid.Row="4" 
                             Content="Начать загрузку" Command="{Binding StartDownloadCommand}"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource InverseBooleanConverter}}"
+                            Margin="5,20,5,5" Height="30" HorizontalAlignment="Stretch"/>
+                    
+                    <!-- Cancel Download Button -->
+                    <Button Grid.Row="4" 
+                            Content="Отмена" Command="{Binding CancelDownloadCommand}"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource BooleanToVisibilityConverter}}"
                             Margin="5,20,5,5" Height="30" HorizontalAlignment="Stretch"/>
                 </Grid>
             </ScrollViewer>
