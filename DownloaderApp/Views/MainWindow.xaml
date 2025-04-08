@@ -1,220 +1,204 @@
-<mah:MetroWindow x:Class="DownloaderApp.Views.MainWindow"
+<metro:MetroWindow x:Class="FileDownloader.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
-        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-        xmlns:local="clr-namespace:DownloaderApp.Views"
-        xmlns:vm="clr-namespace:DownloaderApp.ViewModels"
-        xmlns:models="clr-namespace:DownloaderApp.Models"
-        xmlns:conv="clr-namespace:DownloaderApp.Converters"
+        xmlns:local="clr-namespace:FileDownloader.Views"
+        xmlns:viewModels="clr-namespace:FileDownloader.ViewModels"
+        xmlns:converters="clr-namespace:FileDownloader.Converters"
+        xmlns:metro="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
-        Title="Downloader App" Height="700" Width="850"
-        MinHeight="600" MinWidth="750"
-        GlowBrush="{DynamicResource MahApps.Brushes.Accent}"
-        BorderThickness="1" 
-        BorderBrush="{DynamicResource MahApps.Brushes.Accent}">
+        Title="File Downloader" Height="650" Width="800"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        
+        <!-- Иконки -->
+        <DrawingImage x:Key="SettingsIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Black">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
 
-    <mah:MetroWindow.Resources>
-        <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-        <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-        <Style x:Key="CancelButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-            <Setter Property="Visibility" Value="Collapsed"/>
-            <Setter Property="MinWidth" Value="120"/>
-            <Setter Property="Padding" Value="10,5,15,5"/>
+        <DrawingImage x:Key="ClearIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Black">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <DrawingImage x:Key="CopyIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Black">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <DrawingImage x:Key="SaveIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Black">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <!-- Стили для сообщений лога -->
+        <Style x:Key="LogMessageStyle" TargetType="TextBlock">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDownloading}" Value="True">
-                    <Setter Property="Visibility" Value="Visible"/>
+                <DataTrigger Binding="{Binding Type}" Value="Error">
+                    <Setter Property="Foreground" Value="Red"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="Warning">
+                    <Setter Property="Foreground" Value="Orange"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="Info">
+                    <Setter Property="Foreground" Value="Black"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="Success">
+                    <Setter Property="Foreground" Value="Green"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="StartButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-            <Setter Property="Padding" Value="10,5,15,5"/>
-            <Setter Property="MinWidth" Value="120"/>
-            <Setter Property="Visibility" Value="Visible"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDownloading}" Value="True">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-            <Setter Property="Padding" Value="10,5,15,5"/>
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="Margin" Value="0,0,5,0"/>
-        </Style>
-    </mah:MetroWindow.Resources>
 
-    <Grid Margin="15">
+        <!-- Анимация для прогресс-бара -->
+        <Storyboard x:Key="ProgressBarAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation
+                Storyboard.TargetProperty="Value"
+                From="0" To="100" Duration="0:0:2"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <GroupBox Grid.Row="0" Header="Параметры загрузки" Margin="0,0,0,15">
+        <!-- Панель управления -->
+        <GroupBox Grid.Row="0" Header="Параметры загрузки" Margin="5">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,0">
-                    <TextBlock Text="База данных:" Margin="0,5,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                    <ComboBox ItemsSource="{Binding AvailableDatabases}"
-                              SelectedItem="{Binding SelectedDatabase}"
-                              DisplayMemberPath="Name"
-                              Margin="0,0,0,10"/>
-
-                    <TextBlock Text="Тема (БД):" Margin="0,0,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                    <ComboBox ItemsSource="{Binding AvailableThemes}"
-                              SelectedItem="{Binding SelectedTheme}"
-                              Margin="0,0,0,10">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:ThemeInfo}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" Margin="0,0,5,0"/>
-                                    <TextBlock Text="{Binding Id, StringFormat='({0})'}" Foreground="{DynamicResource MahApps.Brushes.Gray2}"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                     <TextBlock Text="Дата начала:" Margin="0,0,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                     <DatePicker SelectedDate="{Binding BeginDate}"
-                                Margin="0,0,0,10"/>
-
-                     <TextBlock Text="Фильтр ID:" Margin="0,5,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                     <TextBox Text="{Binding SelectedFilterId, UpdateSourceTrigger=PropertyChanged}"
-                             mah:TextBoxHelper.Watermark="Введите ID (число, 0 - нет)"
-                             mah:TextBoxHelper.ClearTextButton="True"
-                             Margin="0,0,0,10"/>
-
-                    <mah:ToggleSwitch Header="Проверка ошибок (flProv)"
-                                      IsOn="{Binding CheckProvError}"
-                                      VerticalAlignment="Center" Margin="0,5,0,10"
-                                      OnContent="Вкл" OffContent="Выкл"/>
-
+                <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <TextBlock Text="База данных:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Width="150" ItemsSource="{Binding AvailableDatabases}" 
+                            SelectedItem="{Binding SelectedDatabase}" Margin="0,0,10,0"/>
+                    
+                    <TextBlock Text="Тема:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Width="150" ItemsSource="{Binding AvailableThemes}" 
+                            SelectedItem="{Binding SelectedTheme}" Margin="0,0,10,0"/>
                 </StackPanel>
 
-                 <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,0,0,0">
-                    <TextBlock Text="Источник:" Margin="0,5,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                    <ComboBox SelectedIndex="{Binding SelectedSourceId}"
-                              Margin="0,0,0,10">
-                        <ComboBoxItem Content="Сетевой путь"/>
-                        <ComboBoxItem Content="FTP"/>
-                        <ComboBoxItem Content="Локальный/Другой"/>
-                    </ComboBox>
+                <StackPanel Grid.Column="1" Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <TextBlock Text="Начальная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <DatePicker Width="120" SelectedDate="{Binding BeginDate}" Margin="0,0,10,0"/>
+                    
+                    <TextBlock Text="Конечная дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <DatePicker Width="120" SelectedDate="{Binding EndDate}" Margin="0,0,10,0"/>
+                </StackPanel>
 
-                     <TextBlock Height="{Binding ElementName=cmbTheme, Path=ActualHeight}" Margin="0,0,0,10" Visibility="Hidden"/>
+                <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <CheckBox Content="Проверять ошибки" IsChecked="{Binding CheckProvError}" 
+                            VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" 
+                            Margin="0,0,5,0">
+                        <Button.ToolTip>
+                            <ToolTip Content="Открыть настройки приложения"/>
+                        </Button.ToolTip>
+                    </Button>
+                </StackPanel>
 
-                     <TextBlock Text="Дата конца:" Margin="0,0,0,2" FontWeight="SemiBold" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                     <DatePicker SelectedDate="{Binding EndDate}"
-                                Margin="0,0,0,10"/>
-
-                     <TextBlock Height="{Binding ElementName=txtFilter, Path=ActualHeight}" Margin="0,0,0,10" Visibility="Hidden"/>
-
-                     <mah:ToggleSwitch Header="Игнорировать ошибки файлов"
-                                      IsOn="{Binding IgnoreDownloadErrors}"
-                                      VerticalAlignment="Center" Margin="0,5,0,10"
-                                      OnContent="Да" OffContent="Нет"/>
-
-                 </StackPanel>
-                 <Grid.IsEnabled>
-                     <Binding Path="IsDownloading" Converter="{StaticResource InverseBooleanConverter}"/>
-                 </Grid.IsEnabled>
+                <Button Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="3" 
+                        Content="Начать загрузку" Command="{Binding StartDownloadCommand}"
+                        Margin="5" Height="30"/>
             </Grid>
         </GroupBox>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <Button Command="{Binding StartDownloadCommand}"
-                    Style="{StaticResource StartButtonStyle}"
-                    ToolTip="Начать загрузку файлов">
-                <StackPanel Orientation="Horizontal">
-                    <iconPacks:PackIconMaterial Kind="Play" VerticalAlignment="Center" Margin="0,0,5,0" />
-                    <TextBlock Text="_Начать загрузку"/>
-                </StackPanel>
-            </Button>
-            <Button Command="{Binding CancelDownloadCommand}"
-                    Style="{StaticResource CancelButtonStyle}"
-                    IsCancel="True"
-                    ToolTip="Отменить текущую загрузку">
-                <StackPanel Orientation="Horizontal">
-                    <iconPacks:PackIconMaterial Kind="Cancel" VerticalAlignment="Center" Margin="0,0,5,0" />
-                    <TextBlock Text="_Отмена"/>
-                </StackPanel>
-            </Button>
-            <Button Command="{Binding OpenSettingsCommand}"
-                    IsEnabled="{Binding IsDownloading, Converter={StaticResource InverseBooleanConverter}}"
-                    ToolTip="Открыть настройки приложения">
-                <StackPanel Orientation="Horizontal">
-                     <iconPacks:PackIconMaterial Kind="Cog" VerticalAlignment="Center" Margin="0,0,5,0" />
-                     <TextBlock Text="_Настройки"/>
-                </StackPanel>
-            </Button>
-            <TextBlock Text="{Binding StatusMessage}"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource MahApps.Brushes.Gray4}"
-                       HorizontalAlignment="Right" Margin="10,0,0,0"/>
-        </StackPanel>
+        <!-- Область лога -->
+        <GroupBox Grid.Row="1" Header="Лог загрузки" Margin="5">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-        <GroupBox Grid.Row="2" Header="Лог выполнения" Margin="0,0,0,10">
-             <ListBox ItemsSource="{Binding LogMessages}"
-                      HorizontalContentAlignment="Stretch"
-                      BorderThickness="0"
-                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                 <ListBox.ItemTemplate>
-                     <DataTemplate>
-                         <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="2"/>
-                     </DataTemplate>
-                 </ListBox.ItemTemplate>
-                 <ListBox.ItemContainerStyle>
-                     <Style TargetType="ListBoxItem">
-                         <Setter Property="Focusable" Value="False"/>
-                         <Setter Property="Template">
-                             <Setter.Value>
-                                 <ControlTemplate TargetType="ListBoxItem">
-                                     <ContentPresenter/>
-                                 </ControlTemplate>
-                             </Setter.Value>
-                         </Setter>
-                     </Style>
-                 </ListBox.ItemContainerStyle>
-             </ListBox>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <Button Content="Очистить лог" Command="{Binding ClearLogCommand}" 
+                            Margin="0,0,5,0">
+                        <Button.ToolTip>
+                            <ToolTip Content="Очистить содержимое лога"/>
+                        </Button.ToolTip>
+                    </Button>
+                    <Button Content="Копировать лог" Command="{Binding CopyLogToClipboardCommand}" 
+                            Margin="0,0,5,0">
+                        <Button.ToolTip>
+                            <ToolTip Content="Копировать лог в буфер обмена"/>
+                        </Button.ToolTip>
+                    </Button>
+                    <Button Content="Сохранить лог" Command="{Binding SaveLogCommand}" 
+                            Margin="0,0,5,0">
+                        <Button.ToolTip>
+                            <ToolTip Content="Сохранить лог в файл"/>
+                        </Button.ToolTip>
+                    </Button>
+                    <ComboBox Width="150" ItemsSource="{Binding LogFilterTypes}" 
+                            SelectedItem="{Binding SelectedLogFilterType}" 
+                            DisplayMemberPath="DisplayName" Margin="5,0,0,0"/>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding FilteredLogMessages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Message}" Style="{StaticResource LogMessageStyle}" 
+                                        Margin="5,2"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
         </GroupBox>
 
-        <Grid Grid.Row="3" Margin="0,5,0,0"
-              Visibility="{Binding IsDownloading, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <mah:MetroProgressBar Grid.Column="0"
-                                  Value="{Binding ProcessedFiles, Mode=OneWay}"
-                                  Maximum="{Binding TotalFiles, Mode=OneWay}"
-                                  IsIndeterminate="{Binding IsIndeterminateProgress}"
-                                  VerticalAlignment="Center" Margin="0,0,10,0"/>
-
-            <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource MahApps.Brushes.Gray1}">
-                <Run Text="Обработано:"/>
-                <Run Text="{Binding ProcessedFiles, Mode=OneWay}" FontWeight="Bold"/>
-                <Run Text="/"/>
-                <Run Text="{Binding TotalFiles, Mode=OneWay}" FontWeight="Bold"/>
-                <Run Text="("/>
-                <Run Text="{Binding CurrentFileName, Mode=OneWay, TargetNullValue='файл...'}"/>
-                <Run Text=")"/>
-            </TextBlock>
-        </Grid>
-
+        <!-- Строка состояния -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock Text="{Binding Status}"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <ProgressBar Width="100" Height="15" IsIndeterminate="True" 
+                            Visibility="{Binding IsDownloading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
-</mah:MetroWindow> 
+</metro:MetroWindow> 

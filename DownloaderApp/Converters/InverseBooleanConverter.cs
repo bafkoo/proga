@@ -2,26 +2,29 @@ using System;
 using System.Globalization;
 using System.Windows.Data;
 
-namespace DownloaderApp.Converters;
-
-[ValueConversion(typeof(bool), typeof(bool))]
-public class InverseBooleanConverter : IValueConverter
+namespace FileDownloader.Converters
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    /// <summary>
+    /// Конвертер, который инвертирует булево значение
+    /// </summary>
+    public class InverseBooleanConverter : IValueConverter
     {
-        if (value is bool booleanValue)
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return !booleanValue;
+            if (value is bool boolValue)
+            {
+                return !boolValue;
+            }
+            return value;
         }
-        return Binding.DoNothing; // Или false, в зависимости от ожидаемого поведения
-    }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        if (value is bool booleanValue)
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return !booleanValue;
+            if (value is bool boolValue)
+            {
+                return !boolValue;
+            }
+            return value;
         }
-        return Binding.DoNothing;
     }
 } 

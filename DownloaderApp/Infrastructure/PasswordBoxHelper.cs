@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls; // Для PasswordBox
 
-namespace DownloaderApp.Infrastructure;
+namespace FileDownloader.Infrastructure;
 
 // Вспомогательный класс для привязки PasswordBox.Password
 public static class PasswordBoxHelper

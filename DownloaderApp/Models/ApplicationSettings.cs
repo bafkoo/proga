@@ -1,4 +1,4 @@
-namespace DownloaderApp.Models;
+namespace FileDownloader.Models;
 
 // Простой класс для хранения настроек, используемых в UI
 public class ApplicationSettings

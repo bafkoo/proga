@@ -1,9 +1,11 @@
 using System.Windows.Input;
-using DownloaderApp.Infrastructure; // Для ObservableObject и RelayCommand
-using DownloaderApp.Models;
+using FileDownloader.Infrastructure; // Обновляем using
+using FileDownloader.Models; // Обновляем using
 using System.Windows; // Для MessageBox
+using CommunityToolkit.Mvvm.ComponentModel; // Добавляем using для ObservableObject
+using CommunityToolkit.Mvvm.Input; // Добавляем using для RelayCommand
 
-namespace DownloaderApp.ViewModels;
+namespace FileDownloader.ViewModels; // Обновляем пространство имен
 
 public class SettingsViewModel : ObservableObject
 {

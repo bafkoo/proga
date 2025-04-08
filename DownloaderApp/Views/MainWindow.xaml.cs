@@ -1,19 +1,18 @@
 using System.Windows;
-using DownloaderApp.ViewModels;
+using FileDownloader.ViewModels;
 using MahApps.Metro.Controls;
 
-namespace DownloaderApp.Views
+namespace FileDownloader.Views;
+
+/// <summary>
+/// Interaction logic for MainWindow.xaml
+/// </summary>
+public partial class MainWindow : MetroWindow
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : MetroWindow
+    public MainWindow()
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-            // Раскомментируем установку DataContext
-            this.DataContext = new DownloaderViewModel(); 
-        }
+        InitializeComponent();
+        // Раскомментируем установку DataContext
+        this.DataContext = new DownloaderViewModel(); 
     }
 } 

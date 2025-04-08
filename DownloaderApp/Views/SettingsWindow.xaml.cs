@@ -1,12 +1,14 @@
 using System.Windows;
-using DownloaderApp.ViewModels;
+using FileDownloader.ViewModels;
+using FileDownloader.Models;
+using MahApps.Metro.Controls;
 
-namespace DownloaderApp.Views;
+namespace FileDownloader.Views;
 
 /// <summary>
 /// Логика взаимодействия для SettingsWindow.xaml
 /// </summary>
-public partial class SettingsWindow : Window
+public partial class SettingsWindow : MetroWindow
 {
     public SettingsWindow(SettingsViewModel viewModel)
     {

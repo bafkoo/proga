@@ -1,31 +1,36 @@
-namespace DownloaderApp.ViewModels;
+namespace FileDownloader.ViewModels;
 
 using System;
-using System.Collections.Generic; // Required for EqualityComparer
-using System.Collections.ObjectModel; // Для списков, обновляющих UI
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Data;
-// using System.Data.SqlClient; // <-- Закомментировано
-using Microsoft.Data.SqlClient; // <-- Добавлено
+using Microsoft.Data.SqlClient;
 using System.IO;
-using System.Net.Http; // Для HttpClient в WebGetAsync
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Tasks; // Для асинхронности
-using System.Windows; // Для Application.Current.Dispatcher
-using System.Windows.Input; // Для команд
-using DownloaderApp.Infrastructure; // Добавляем using
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using FileDownloader.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using FluentFTP;
 using System.Net;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using DownloaderApp.Models; // Добавляем using для моделей
-using DownloaderApp.Views; // Для SettingsWindow
-using System.Diagnostics; // Для Debug.WriteLine
-using System.Linq;     // Для Select
-using FluentFTP.Exceptions; // Добавляем using для FtpCommandException
-using ControlzEx.Theming; // <-- Добавлено для MahApps ThemeManager
+using FileDownloader.Models;
+using FileDownloader.Views;
+using System.Diagnostics;
+using System.Linq;
+using FluentFTP.Exceptions;
+using ControlzEx.Theming;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
+using static System.Windows.Clipboard;
+using Serilog;
+using Serilog.Events;
 
 // --- Добавляем класс DownloadResult ---
 public class DownloadResult
@@ -36,11 +41,29 @@ public class DownloadResult
     public HttpStatusCode? StatusCode { get; set; } // HTTP статус ответа
     public string ErrorMessage { get; set; } // Сообщение об ошибке
     public string TempFilePath { get; set; } // Путь к временному файлу (если он остался)
+    public TimeSpan? RetryAfterHeaderValue { get; set; } // <-- Добавлено поле для Retry-After
 }
 // --- Конец класса DownloadResult ---
 
+// --- Состояния Circuit Breaker ---
+enum CircuitBreakerState { Closed, Open, HalfOpen }
+
 public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 {
+    // --- Circuit Breaker State ---
+    private volatile CircuitBreakerState _breakerState = CircuitBreakerState.Closed;
+    private DateTime _breakerOpenUntilUtc = DateTime.MinValue;
+    private volatile int _consecutive429Failures = 0;
+    private const int BreakerFailureThreshold = 5; // Порог ошибок для размыкания
+    private readonly TimeSpan BreakerOpenDuration = TimeSpan.FromSeconds(30); // Время размыкания
+    private object _breakerLock = new object(); // Для синхронизации перехода в HalfOpen
+
+    // --- Генератор случайных чисел для Jitter ---
+    private static readonly Random _random = new Random();
+
+    // --- Адаптивная задержка для Rate Limiting ---
+    private volatile int _adaptiveDelayMilliseconds = 0; // Используем volatile для потокобезопасного чтения/записи
+
     // --- Текущие Активные Настройки ---
     private ApplicationSettings _currentSettings = new ApplicationSettings();
     public ApplicationSettings CurrentSettings
@@ -49,18 +72,33 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         private set => SetProperty(ref _currentSettings, value);
     }
 
+    // Восстанавливаем свойство CurrentFtpSettings
+    private FtpSettings _currentFtpSettings = new FtpSettings();
+    public FtpSettings CurrentFtpSettings
+    {
+        get => _currentFtpSettings;
+        private set => SetProperty(ref _currentFtpSettings, value);
+    }
+
     // --- Параметры загрузки (Свойства, к которым будет привязан UI) ---
 
-    // Добавляем коллекцию баз данных и свойство для выбранной базы
-    public ObservableCollection<DatabaseInfo> AvailableDatabases { get; } = new ObservableCollection<DatabaseInfo>();
     private DatabaseInfo _selectedDatabase;
     public DatabaseInfo SelectedDatabase
     {
         get => _selectedDatabase;
-        set => SetProperty(ref _selectedDatabase, value);
+        set
+        {
+            if (SetProperty(ref _selectedDatabase, value))
+            {
+                // Загружаем темы при смене базы данных, но используем _iacConnectionString
+                LoadAvailableThemes(); 
+                // Обновляем состояние команды StartDownloadCommand, так как изменилась зависимость
+                 if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
+            }
+        }
     }
 
-    public ObservableCollection<ThemeInfo> AvailableThemes { get; } = new ObservableCollection<ThemeInfo>();
+
     private ThemeInfo _selectedTheme;
     public ThemeInfo SelectedTheme
     {
@@ -187,13 +225,47 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         private set => SetProperty(ref _isDownloading, value);
     }
 
-    // Список сообщений для лога (вместо memoStatus)
-    public ObservableCollection<string> LogMessages { get; } = new ObservableCollection<string>();
+    // --- Свойства для лога ---
+    private ObservableCollection<LogMessage> _logMessages = new ObservableCollection<LogMessage>();
+    public ObservableCollection<LogMessage> LogMessages
+    {
+        get => _logMessages;
+        private set => SetProperty(ref _logMessages, value);
+    }
+
+    private ObservableCollection<LogMessage> _filteredLogMessages = new ObservableCollection<LogMessage>();
+    public ObservableCollection<LogMessage> FilteredLogMessages
+    {
+        get => _filteredLogMessages;
+        private set => SetProperty(ref _filteredLogMessages, value);
+    }
+
+    private ObservableCollection<LogFilterType> _logFilterTypes = new ObservableCollection<LogFilterType>();
+    public ObservableCollection<LogFilterType> LogFilterTypes
+    {
+        get => _logFilterTypes;
+        private set => SetProperty(ref _logFilterTypes, value);
+    }
+
+    private LogFilterType _selectedLogFilterType;
+    public LogFilterType SelectedLogFilterType
+    {
+        get => _selectedLogFilterType;
+        set
+        {
+            if (SetProperty(ref _selectedLogFilterType, value))
+            {
+                UpdateFilteredLogMessages();
+            }
+        }
+    }
 
     // --- Команды (Для кнопок) ---
     public ICommand StartDownloadCommand { get; }
     public ICommand CancelDownloadCommand { get; }
     public ICommand OpenSettingsCommand { get; }
+    public ICommand ClearLogCommand { get; }
+    public ICommand CopyLogToClipboardCommand { get; }
 
     // --- CancellationTokenSource ---
     private CancellationTokenSource _cancellationTokenSource;
@@ -201,6 +273,117 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     // --- Свойства конфигурации --- 
     private string _baseConnectionString;
     private string _iacConnectionString;
+    private string _serverOfficeConnectionString;
+
+    private static readonly HttpClient _httpClient;
+
+    private bool _updateFlag;
+    public bool UpdateFlag
+    {
+        get => _updateFlag;
+        set
+        {
+            if (_updateFlag != value)
+            {
+                _updateFlag = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // Добавляем новые свойства для улучшения UI
+    private double _downloadProgress;
+    public double DownloadProgress
+    {
+        get => _downloadProgress;
+        set
+        {
+            if (_downloadProgress != value)
+            {
+                _downloadProgress = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _currentFileDetails;
+    public string CurrentFileDetails
+    {
+        get => _currentFileDetails;
+        set
+        {
+            if (_currentFileDetails != value)
+            {
+                _currentFileDetails = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _downloadSpeed;
+    public string DownloadSpeed
+    {
+        get => _downloadSpeed;
+        set
+        {
+            if (_downloadSpeed != value)
+            {
+                _downloadSpeed = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _estimatedTimeRemaining;
+    public string EstimatedTimeRemaining
+    {
+        get => _estimatedTimeRemaining;
+        set
+        {
+            if (_estimatedTimeRemaining != value)
+            {
+                _estimatedTimeRemaining = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private DateTime _downloadStartTime;
+    private long _totalBytesDownloaded;
+    private long _lastBytesDownloaded;
+    private DateTime _lastProgressUpdate;
+
+    static DownloaderViewModel()
+    {
+        // Настройка обработчика HTTP
+        var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 10,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        };
+
+        _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
+
+        // Настройка заголовков по умолчанию
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
+        _httpClient.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
+        _httpClient.DefaultRequestHeaders.Add("Pragma", "no-cache");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Mobile", "?0");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Platform", "\"Windows\"");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "none");
+        _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
+        _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
+        _httpClient.DefaultRequestHeaders.Add("DNT", "1");
+    }
 
     // --- Конструктор ---
     public DownloaderViewModel()
@@ -213,7 +396,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         LoadAvailableDatabases();
         FileLogger.Log("Конструктор DownloaderViewModel: LoadAvailableDatabases завершен");
         
-        LoadAvailableThemes();
+        // Загружаем темы сразу после конфигурации, т.к. они из IAC
+        LoadAvailableThemes(); 
         FileLogger.Log("Конструктор DownloaderViewModel: LoadAvailableThemes завершен");
 
         LoadUiThemesAndAccents();
@@ -229,8 +413,17 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             () => IsDownloading
         );
         OpenSettingsCommand = new RelayCommand(OpenSettingsWindow, () => !IsDownloading);
+        ClearLogCommand = new RelayCommand(
+            () => LogMessages.Clear(),
+            () => LogMessages.Count > 0
+        );
+        CopyLogToClipboardCommand = new RelayCommand(
+            () => SetText(string.Join(Environment.NewLine, LogMessages)),
+            () => LogMessages.Count > 0
+        );
         FileLogger.Log("Конструктор DownloaderViewModel: Команды инициализированы");
 
+        StatusMessage = "Готов"; // Начальный статус
         FileLogger.Log("Конструктор DownloaderViewModel: Завершен");
     }
 
@@ -238,6 +431,30 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task StartDownloadAsync()
     {
+        if (SelectedTheme == null)
+        {
+            AddLogMessage("ОШИБКА: Не выбрана тема");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(SelectedDatabase?.Name))
+        {
+            AddLogMessage("ОШИБКА: Не выбрана база данных");
+            return;
+        }
+
+        if (BeginDate == default || EndDate == default)
+        {
+            AddLogMessage("ОШИБКА: Не выбран диапазон дат");
+            return;
+        }
+
+        if (EndDate < BeginDate)
+        {
+            AddLogMessage("ОШИБКА: Дата окончания меньше даты начала");
+            return;
+        }
+
         if (!string.IsNullOrEmpty(Error) || SelectedDatabase == null || SelectedTheme == null)
         { AddLogMessage("Ошибка валидации параметров. Загрузка не начата."); return; }
         if (IsDownloading) return;
@@ -246,16 +463,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         var token = _cancellationTokenSource.Token;
 
         IsDownloading = true;
-        (StartDownloadCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (CancelDownloadCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (OpenSettingsCommand as RelayCommand)?.RaiseCanExecuteChanged(); // Обновляем кнопку Настроек
+        (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
 
         LogMessages.Clear();
         AddLogMessage("Начало загрузки...");
         TotalFiles = 0;
         ProcessedFiles = 0;
         CurrentFileName = "";
-        StatusMessage = "Загрузка...";
+        StatusMessage = "Загрузка..."; // Статус в начале загрузки
 
         string databaseName = SelectedDatabase.Name;
         int themeId = SelectedTheme.Id;
@@ -384,9 +601,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             StatusMessage = finalStatus; // Устанавливаем итоговый статус
             CurrentFileName = "";
             _cancellationTokenSource?.Dispose(); _cancellationTokenSource = null;
-            (StartDownloadCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (CancelDownloadCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (OpenSettingsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
+
+            // В блоке finally обновляем статус загрузки
+            UpdateFlag = false;
         }
     }
 
@@ -511,7 +731,40 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                 try
                 {
+                    // --- ПРОВЕРКА CIRCUIT BREAKER --- 
+                    if (_breakerState == CircuitBreakerState.Open)
+                    {
+                        if (DateTime.UtcNow < _breakerOpenUntilUtc)
+                        {
+                            // Предохранитель разомкнут, блокируем запрос
+                            throw new Exception($"Circuit Breaker is Open until {_breakerOpenUntilUtc}. Skipping download for '{originalFileName}'.");
+                        }
+                        else
+                        {
+                            // Время вышло, пытаемся перейти в HalfOpen (только один поток должен это сделать)
+                            lock(_breakerLock)
+                            { 
+                                if (_breakerState == CircuitBreakerState.Open) // Доп. проверка внутри lock
+                                { 
+                                    _breakerState = CircuitBreakerState.HalfOpen;
+                                     AddLogMessage("Circuit Breaker переходит в состояние Half-Open.");
+                                }
+                            }
+                            // Если не мы перешли, а другой поток, то мы все еще в Open - выбросится исключение на след. итерации проверки
+                        }
+                    }
+                    // Если мы в HalfOpen, разрешаем одну попытку (код ниже)
+                    // Если мы в Closed, все как обычно
+
                     Application.Current.Dispatcher.Invoke(() => CurrentFileName = originalFileName); // Обновляем UI перед скачиванием
+
+                    // --- УМНЫЙ ПОДХОД: Добавляем адаптивную задержку перед скачиванием ---
+                    int currentAdaptiveDelay = _adaptiveDelayMilliseconds;
+                    if (currentAdaptiveDelay > 0)
+                    {
+                        AddLogMessage($"Применяется адаптивная задержка: {currentAdaptiveDelay} мс");
+                        await Task.Delay(currentAdaptiveDelay, token);
+                    }
 
                     for (int attempt = 1; attempt <= maxRetries; attempt++)
                     {
@@ -528,15 +781,101 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         }
                         else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries)
                         {
-                            AddLogMessage($"Ошибка 429 (Too Many Requests) для '{originalFileName}'. Повтор через {retryDelaySeconds} сек...");
-                            await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), token);
-                            retryDelaySeconds *= 2; // Увеличиваем задержку для следующего раза (простой exponential backoff)
+                            int delaySeconds = retryDelaySeconds;
+                            // --- УМНЫЙ ПОДХОД: Проверяем Retry-After ---
+                            if (downloadResult.RetryAfterHeaderValue.HasValue)
+                            {
+                                delaySeconds = (int)Math.Max(delaySeconds, downloadResult.RetryAfterHeaderValue.Value.TotalSeconds); // Берем максимум из нашей задержки и предложенной сервером
+                                AddLogMessage($"Ошибка 429 (Too Many Requests) для '{originalFileName}'. Сервер просит подождать {downloadResult.RetryAfterHeaderValue.Value.TotalSeconds} сек. Используем {delaySeconds} сек...");
+                            }
+                            else
+                            {
+                                AddLogMessage($"Ошибка 429 (Too Many Requests) для '{originalFileName}'. Повтор через {delaySeconds} сек...");
+                            }
+
+                            // --- УМНЫЙ ПОДХОД: Увеличиваем адаптивную задержку ---
+                            Interlocked.Add(ref _adaptiveDelayMilliseconds, 5000); // Атомарно добавляем 5 секунд к общей задержке
+                            AddLogMessage($"Увеличена адаптивная задержка до: {_adaptiveDelayMilliseconds} мс");
+
+                            // Добавляем Jitter к задержке
+                            int jitterMilliseconds = _random.Next(100, 501); // от 0.1 до 0.5 сек
+                            TimeSpan totalDelay = TimeSpan.FromSeconds(delaySeconds) + TimeSpan.FromMilliseconds(jitterMilliseconds);
+                            AddLogMessage($"Добавлено дрожание (jitter): {jitterMilliseconds} мс. Общая задержка: {totalDelay.TotalSeconds:F1} сек.");
+
+                            Interlocked.Add(ref _consecutive429Failures, 1); // Увеличиваем счетчик ошибок 429
+                            AddLogMessage($"Последовательных ошибок 429: {_consecutive429Failures}");
+
+                            // Проверяем, не пора ли разомкнуть предохранитель
+                            if (_consecutive429Failures >= BreakerFailureThreshold && _breakerState != CircuitBreakerState.Open)
+                            {
+                                lock (_breakerLock) // Синхронизируем переход в Open
+                                {
+                                    if (_breakerState != CircuitBreakerState.Open) // Доп. проверка
+                                    {
+                                        _breakerOpenUntilUtc = DateTime.UtcNow + BreakerOpenDuration;
+                                        _breakerState = CircuitBreakerState.Open;
+                                        AddLogMessage($"Circuit Breaker РАЗОМКНУТ на {BreakerOpenDuration.TotalSeconds} секунд из-за {_consecutive429Failures} ошибок 429 подряд.");
+                                    }
+                                }
+                            }
+
+                            await Task.Delay(totalDelay, token);
+                            retryDelaySeconds *= 2; // Увеличиваем *нашу* экспоненциальную задержку на случай, если Retry-After не было
                         }
-                        else
+                        else // Успех или другая ошибка
                         {
-                            // Другая ошибка или последняя попытка при 429 - выходим из цикла
-                            AddLogMessage($"Не удалось скачать файл '{originalFileName}' после {attempt} попыток. Ошибка: {downloadResult.ErrorMessage}");
-                            break;
+                            if (downloadResult.Success)
+                            {
+                                 // --- СБРОС СЧЕТЧИКОВ ПРИ УСПЕХЕ ---
+                                 Interlocked.Exchange(ref _consecutive429Failures, 0); // Сбрасываем счетчик ошибок 429
+
+                                 // Если мы были в HalfOpen и успешны, замыкаем предохранитель
+                                 if (_breakerState == CircuitBreakerState.HalfOpen)
+                                 {
+                                      lock(_breakerLock)
+                                      {
+                                           if (_breakerState == CircuitBreakerState.HalfOpen) // Доп. проверка
+                                           {
+                                               _breakerState = CircuitBreakerState.Closed;
+                                               AddLogMessage("Circuit Breaker ЗАМКНУТ после успешной попытки в Half-Open.");
+                                           }
+                                      }
+                                 }
+
+                                 // --- УМНЫЙ ПОДХОД: Уменьшаем адаптивную задержку при успехе ---
+                                 currentAdaptiveDelay = _adaptiveDelayMilliseconds; // Просто считываем текущее значение
+                                 if (currentAdaptiveDelay > 0)
+                                 {
+                                     int newAdaptiveDelay = Math.Max(0, currentAdaptiveDelay - 500); // Уменьшаем на 0.5 сек, но не ниже 0
+                                     Interlocked.CompareExchange(ref _adaptiveDelayMilliseconds, newAdaptiveDelay, currentAdaptiveDelay); // Атомарно устанавливаем новое значение, если оно не изменилось
+                                     AddLogMessage($"Уменьшена адаптивная задержка до: {newAdaptiveDelay} мс");
+                                 }
+                                 break; // Выходим из цикла повторов при успехе
+                            }
+                            else
+                            {
+                                AddLogMessage($"Не удалось скачать файл '{originalFileName}' после {attempt} попыток. Ошибка: {downloadResult.ErrorMessage}");
+                                
+                                // Если мы были в HalfOpen и получили ошибку (любую), снова размыкаем предохранитель
+                                if (_breakerState == CircuitBreakerState.HalfOpen)
+                                {
+                                     lock(_breakerLock)
+                                     {
+                                         if (_breakerState == CircuitBreakerState.HalfOpen)
+                                         {
+                                             _breakerOpenUntilUtc = DateTime.UtcNow + BreakerOpenDuration; // Можно увеличить время? Пока нет.
+                                             _breakerState = CircuitBreakerState.Open;
+                                             AddLogMessage("Circuit Breaker снова РАЗОМКНУТ после неудачной попытки в Half-Open.");
+                                         }
+                                     }
+                                }
+                                
+                                // Сбрасываем счетчик последовательных ошибок 429, т.к. ошибка была НЕ 429 (или мы уже разомкнули CB)
+                                // Хотя, если ошибка в HalfOpen была 429, то счетчик уже увеличился выше
+                                // Подумать над этим моментом. Пока оставим так.
+                                
+                                break; // Выход из цикла при других ошибках или последней попытке 429
+                            }
                         }
                     }
 
@@ -590,7 +929,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                 // --- Запись метаданных в базу IAC ---
                 AddLogMessage($"Запись метаданных в IAC для documentMetaID: {documentMetaID}");
-                using (SqlConnection conBaseI = new SqlConnection(iacConnectionString))
+                using (SqlConnection conBaseI = new SqlConnection(_serverOfficeConnectionString)) 
                 {
                      await conBaseI.OpenAsync(token);
                      using (SqlCommand cmdInsert = new SqlCommand("documentMetaPathInsert", conBaseI) { CommandType = CommandType.StoredProcedure, CommandTimeout = 300 })
@@ -644,8 +983,6 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                           using (SqlCommand cmdUpdate = new SqlCommand("documentMetaUpdateFlag", conBase) { CommandType = CommandType.StoredProcedure })
                           {
                                cmdUpdate.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
-                               cmdUpdate.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
-                               cmdUpdate.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
                                await cmdUpdate.ExecuteNonQueryAsync(token);
                                AddLogMessage($"Флаг для documentMetaID: {documentMetaID} обновлен.");
                           }
@@ -658,6 +995,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                      AddLogMessage($"Удаление временного файла после FTP: {fileDocument}");
                      File.Delete(fileDocument);
                 }
+
+                // Обновляем информацию о текущем файле
+                CurrentFileDetails = $"Файл: {originalFileName}\n" +
+                                   $"Размер: {fileSize} байт\n" +
+                                   $"Дата публикации: {publishDate:dd.MM.yyyy}\n" +
+                                   $"Описание: {docDescription}";
+
+                // Сбрасываем счетчики при начале загрузки нового файла
+                _totalBytesDownloaded = 0;
+                _lastBytesDownloaded = 0;
+                _lastProgressUpdate = DateTime.Now;
+                _downloadStartTime = DateTime.Now;
+
+                // В методе WebGetAsync добавляем обновление прогресса
+                progress?.Report((double)_totalBytesDownloaded / fileSize * 100);
+                UpdateDownloadStats(fileSize);
             }
             else // Режим проверки ошибок (flProv == true)
             {
@@ -710,8 +1063,6 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                               using (SqlCommand cmdUpdateDelete = new SqlCommand("documentMetaUpdateFlagDelete", conBase) { CommandType = CommandType.StoredProcedure })
                               {
                                    cmdUpdateDelete.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
-                                   cmdUpdateDelete.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
-                                   cmdUpdateDelete.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
                                    await cmdUpdateDelete.ExecuteNonQueryAsync(token);
                                    AddLogMessage($"Запись для documentMetaID: {documentMetaID} помечена на удаление.");
                               }
@@ -737,13 +1088,61 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     } // Конец метода ProcessFileAsync
 
-    private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) }; // Увеличим таймаут
+    private void UpdateDownloadStats(long totalFileSize)
+    {
+        var now = DateTime.Now;
+        var timeElapsed = (now - _lastProgressUpdate).TotalSeconds;
+        
+        if (timeElapsed > 0)
+        {
+            var bytesPerSecond = (_totalBytesDownloaded - _lastBytesDownloaded) / timeElapsed;
+            DownloadSpeed = FormatBytes(bytesPerSecond) + "/сек";
+            
+            if (bytesPerSecond > 0)
+            {
+                var remainingBytes = totalFileSize - _totalBytesDownloaded;
+                var secondsRemaining = remainingBytes / bytesPerSecond;
+                EstimatedTimeRemaining = FormatTimeSpan(TimeSpan.FromSeconds(secondsRemaining));
+            }
+        }
+        
+        _lastBytesDownloaded = _totalBytesDownloaded;
+        _lastProgressUpdate = now;
+    }
+
+    private string FormatBytes(double bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        while (bytes >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            bytes = bytes / 1024;
+        }
+        return $"{bytes:0.##} {sizes[order]}";
+    }
+
+    private string FormatTimeSpan(TimeSpan timeSpan)
+    {
+        if (timeSpan.TotalHours >= 1)
+            return $"{(int)timeSpan.TotalHours}ч {timeSpan.Minutes}м";
+        if (timeSpan.TotalMinutes >= 1)
+            return $"{timeSpan.Minutes}м {timeSpan.Seconds}с";
+        return $"{timeSpan.Seconds}с";
+    }
 
     // --- ЗАМЕНА WebGetAsync ---
     private async Task<DownloadResult> WebGetAsync(string url, string tempFilePath, CancellationToken token, IProgress<double> progress)
     {
         var result = new DownloadResult { Success = false, ActualSize = 0, TempFilePath = tempFilePath };
         FileLogger.Log($"WebGetAsync: Начало загрузки {url} -> {tempFilePath}");
+
+        // Логируем заголовки запроса
+        FileLogger.Log($"WebGetAsync: Заголовки запроса:");
+        foreach (var header in _httpClient.DefaultRequestHeaders)
+        {
+            FileLogger.Log($"    {header.Key}: {string.Join(", ", header.Value)}");
+        }
 
         // Ensure directory exists (optional here, could be done just before Move)
         try
@@ -767,6 +1166,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             using (HttpResponseMessage response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token))
             {
                 result.StatusCode = response.StatusCode;
+                result.RetryAfterHeaderValue = response.Headers.RetryAfter?.Delta; // <-- Сохраняем значение Retry-After
+                
+                // Логируем заголовки ответа
+                FileLogger.Log($"WebGetAsync: Заголовки ответа:");
+                foreach (var header in response.Headers)
+                {
+                    FileLogger.Log($"    {header.Key}: {string.Join(", ", header.Value)}");
+                }
+                if (response.Content?.Headers != null)
+                {
+                    foreach (var header in response.Content.Headers)
+                    {
+                        FileLogger.Log($"    {header.Key}: {string.Join(", ", header.Value)}");
+                    }
+                }
+
                 FileLogger.Log($"WebGetAsync: Получен ответ {result.StatusCode} для {url}");
 
                 if (response.IsSuccessStatusCode)
@@ -916,125 +1331,215 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
 
-    private void AddLogMessage(string message)
+    private void AddLogMessage(string message, string type = "Info")
     {
-        FileLogger.Log(message);
+        var logMessage = new LogMessage
+        {
+            Message = message,
+            Type = type,
+            Timestamp = DateTime.Now
+        };
+
         Application.Current?.Dispatcher?.Invoke(() =>
         {
-            if (LogMessages.Count > 1000) { LogMessages.RemoveAt(0); }
-            LogMessages.Add(message);
+            if (LogMessages.Count > 1000)
+            {
+                LogMessages.RemoveAt(0);
+            }
+            LogMessages.Add(logMessage);
+            UpdateFilteredLogMessages();
         });
     }
 
-    // Метод для загрузки списка баз данных (оставляем жестко закодированный список)
-    private void LoadAvailableDatabases()
+    private void UpdateFilteredLogMessages()
     {
-        try
+        if (SelectedLogFilterType == null || SelectedLogFilterType.Type == "All")
         {
-            AddLogMessage("Загрузка списка баз данных...");
-            AvailableDatabases.Clear();
-            // Список баз данных - предполагаем, что он статичен
-            var dbNames = new List<string> { 
-                "notificationEF", "notificationZK", "notificationOK", 
-                "fcsNotification", "contract", "purchaseNotice", "requestQuotation"
-                // Добавьте другие базы данных сюда, если необходимо
-            };
-            
-            foreach (var name in dbNames.OrderBy(n => n))
-            {
-                AvailableDatabases.Add(new DatabaseInfo { Name = name });
-            }
-            AddLogMessage($"Загружено {AvailableDatabases.Count} баз данных.");
-            // SelectedDatabase = AvailableDatabases.FirstOrDefault(); // Можно выбрать первую по умолчанию
+            FilteredLogMessages = new ObservableCollection<LogMessage>(LogMessages);
         }
-        catch (Exception ex)
+        else
         {
-            AddLogMessage($"ОШИБКА при загрузке списка баз данных: {ex.Message}");
-            // Можно показать ошибку пользователю
+            FilteredLogMessages = new ObservableCollection<LogMessage>(
+                LogMessages.Where(m => m.Type == SelectedLogFilterType.Type)
+            );
         }
     }
 
-    // Метод для загрузки списка тем из базы IAC (реализован синхронно)
-    private void LoadAvailableThemes()
+    private void InitializeLogFilterTypes()
     {
-        AddLogMessage("Загрузка списка тем...");
-        AvailableThemes.Clear();
-        if (string.IsNullOrEmpty(_iacConnectionString))
-        { AddLogMessage("ОШИБКА: Строка подключения к базе IAC/zakupkiWeb не найдена."); return; }
+        LogFilterTypes.Clear();
+        LogFilterTypes.Add(new LogFilterType { Name = "All", DisplayName = "Все сообщения", Type = "All" });
+        LogFilterTypes.Add(new LogFilterType { Name = "Error", DisplayName = "Ошибки", Type = "Error" });
+        LogFilterTypes.Add(new LogFilterType { Name = "Warning", DisplayName = "Предупреждения", Type = "Warning" });
+        LogFilterTypes.Add(new LogFilterType { Name = "Info", DisplayName = "Информация", Type = "Info" });
+        LogFilterTypes.Add(new LogFilterType { Name = "Success", DisplayName = "Успешно", Type = "Success" });
+        SelectedLogFilterType = LogFilterTypes.First();
+    }
 
-        // Используем правильную таблицу dbo.theme и столбцы themeID, themeName
-        string query = "SELECT themeID, themeName FROM dbo.theme ORDER BY themeName;"; 
-        
-        SqlConnection connection = null;
+    // --- Свойства для баз данных и тем ---
+    private ObservableCollection<DatabaseInfo> _availableDatabases = new ObservableCollection<DatabaseInfo>();
+    public ObservableCollection<DatabaseInfo> AvailableDatabases
+    {
+        get => _availableDatabases;
+        private set => SetProperty(ref _availableDatabases, value);
+    }
+
+    // ... existing code ...
+
+    private void LoadAvailableDatabases()
+    {
+        AddLogMessage($"LoadAvailableDatabases: Начало. Проверка _baseConnectionString.", "Info"); // Добавлено
+        if (string.IsNullOrEmpty(_baseConnectionString))
+        {
+            AddLogMessage("LoadAvailableDatabases: Ошибка - _baseConnectionString пустая или null.", "Error"); // Изменено
+            return;
+        }
+        AddLogMessage($"LoadAvailableDatabases: _baseConnectionString = '{_baseConnectionString}'.", "Info"); // Добавлено
+
         try
         {
-            connection = new SqlConnection(_iacConnectionString);
-            using (SqlCommand command = new SqlCommand(query, connection))
+            var databases = new[] { "notificationEF", "notificationZK", "notificationOK", "fcsNotification", "contract", "purchaseNotice", "requestQuotation" };
+            var availableDbs = new List<DatabaseInfo>();
+
+            AddLogMessage($"LoadAvailableDatabases: Начало цикла проверки {databases.Length} баз данных.", "Info"); // Добавлено
+            foreach (var db in databases)
+            {
+                try
+                {
+                    var connectionString = _baseConnectionString.Replace("Initial Catalog=notificationEF", $"Initial Catalog={db}"); // Оставим Replace пока что
+                    AddLogMessage($"LoadAvailableDatabases: Попытка подключения к {db} ({connectionString})", "Info"); // Добавлено
+                    using (var connection = new SqlConnection(connectionString))
+                    {
+                        // Установим короткий таймаут для быстрой проверки
+                        connection.Open(); // Используем стандартный таймаут
+                        availableDbs.Add(new DatabaseInfo { Name = db });
+                        AddLogMessage($"LoadAvailableDatabases: База данных {db} доступна.", "Success"); // Изменено
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Логируем подробно ошибку подключения
+                    AddLogMessage($"LoadAvailableDatabases: База данных {db} недоступна. Ошибка: {ex.GetType().Name} - {ex.Message}", "Warning"); // Изменено
+                }
+            }
+            AddLogMessage($"LoadAvailableDatabases: Цикл проверки баз данных завершен. Найдено доступных: {availableDbs.Count}.", "Info"); // Добавлено
+
+            AvailableDatabases = new ObservableCollection<DatabaseInfo>(availableDbs);
+            AddLogMessage("LoadAvailableDatabases: Загрузка списка доступных баз данных завершена.", "Info"); // Изменено
+        }
+        catch (Exception ex)
+        {
+            AddLogMessage($"LoadAvailableDatabases: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}", "Error"); // Изменено
+            if (ex.InnerException != null)
+            {
+                AddLogMessage($"LoadAvailableDatabases: Внутренняя ошибка: {ex.InnerException.Message}", "Error"); // Изменено
+            }
+            AvailableDatabases.Clear(); // Очищаем на всякий случай
+        }
+        AddLogMessage($"LoadAvailableDatabases: Завершение метода.", "Info"); // Добавлено
+    }
+
+    // Метод для загрузки списка тем из базы IAC (zakupkiweb)
+    private void LoadAvailableThemes()
+    {
+        AddLogMessage("LoadAvailableThemes: Загрузка тем из базы IAC (zakupkiweb)...", "Info");
+        if (string.IsNullOrEmpty(_iacConnectionString))
+        {
+             AddLogMessage("LoadAvailableThemes: Ошибка - строка подключения IacConnection не загружена.", "Error");
+             SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes));
+             return;
+        }
+         AddLogMessage($"LoadAvailableThemes: Используется строка подключения _iacConnectionString='{_iacConnectionString}'", "Info");
+
+        try
+        {
+            var connectionString = _iacConnectionString;
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                using (SqlDataReader reader = command.ExecuteReader())
+                using (var command = new SqlCommand("SELECT ThemeID, Name FROM Theme", connection)) 
                 {
-                    if (!reader.HasRows) { AddLogMessage("Темы в таблице dbo.theme не найдены."); }
-                    else
+                    using (var reader = command.ExecuteReader())
                     {
+                        var themes = new List<ThemeInfo>();
                         while (reader.Read())
                         {
-                            try
+                            themes.Add(new ThemeInfo
                             {
-                                // Используем правильные имена столбцов при чтении
-                                int id = reader.GetInt32(reader.GetOrdinal("themeID"));
-                                string name = reader.IsDBNull(reader.GetOrdinal("themeName")) ? "(Без имени)" : reader.GetString(reader.GetOrdinal("themeName"));
-                                AvailableThemes.Add(new ThemeInfo { Id = id, Name = name });
-                            }
-                            catch (Exception readEx) { AddLogMessage($"ОШИБКА при чтении строки темы: {readEx.Message}"); }
+                                Id = reader.GetInt32(0),
+                                Name = reader.GetString(1)
+                            });
                         }
+                        SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes));
+                        AddLogMessage($"LoadAvailableThemes: Загружено {themes.Count} тем из IAC.", "Success");
                     }
                 }
             }
-            AddLogMessage($"Загружено {AvailableThemes.Count} тем.");
         }
-        catch (SqlException sqlEx) { AddLogMessage($"ОШИБКА SQL при загрузке списка тем: {sqlEx.Message}"); }
-        catch (Exception ex) { AddLogMessage($"ОБЩАЯ ОШИБКА при загрузке списка тем: {ex.Message}"); }
-        finally { connection?.Close(); }
+        catch (Exception ex)
+        {
+            AddLogMessage($"LoadAvailableThemes: Ошибка при загрузке тем из IAC: {ex.Message}", "Error");
+            SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes));
+        }
+         AddLogMessage("LoadAvailableThemes: Завершение метода.", "Info");
     }
 
     private void LoadConfigurationAndSettings()
     {
         try
         {
-            _baseConnectionString = App.Configuration.GetConnectionString("DefaultConnection");
+            // Загружаем строки подключения как есть
             _iacConnectionString = App.Configuration.GetConnectionString("IacConnection");
+            _serverOfficeConnectionString = App.Configuration.GetConnectionString("ServerOfficeConnection");
+            string defaultConnectionString = App.Configuration.GetConnectionString("DefaultConnection"); // Временная переменная
 
-            // Создаем и заполняем объект настроек из конфигурации
-            var settings = new ApplicationSettings
+            AddLogMessage($"LoadConfigurationAndSettings: _serverOfficeConnectionString = '{_serverOfficeConnectionString}'", "Info"); // Добавлено
+
+            // Проверяем наличие ServerOfficeConnection, так как он теперь базовый
+            if (string.IsNullOrEmpty(_serverOfficeConnectionString))
             {
-                UserId = App.Configuration.GetValue<int>("AppSettings:UserId"),
-                ProcessId = App.Configuration.GetValue<int>("AppSettings:ProcessId"),
-                SleepIntervalMilliseconds = App.Configuration.GetValue<int>("AppSettings:SleepIntervalMilliseconds", 100),
-                MaxParallelDownloads = App.Configuration.GetValue<int>("AppSettings:MaxParallelDownloads", 4),
-                // Читаем настройки FTP (кроме пароля)
-                FtpHost = App.Configuration.GetValue<string>("FtpSettings:Host"),
-                FtpPort = App.Configuration.GetValue<int>("FtpSettings:Port", 21),
-                FtpUsername = App.Configuration.GetValue<string>("FtpSettings:Username"),
-                // FtpPassword = App.Configuration.GetValue<string>("FtpSettings:Password"), // НЕ ЧИТАЕМ ПАРОЛЬ ИЗ КОНФИГА
-                FtpPassword = null, // Инициализируем null или пустой строкой
-                FtpUseSsl = App.Configuration.GetValue<bool>("FtpSettings:UseSsl", false),
-                FtpValidateCertificate = App.Configuration.GetValue<bool>("FtpSettings:ValidateCertificate", true)
-            };
-            
-            if (settings.MaxParallelDownloads <= 0) settings.MaxParallelDownloads = 1; 
-            if (settings.SleepIntervalMilliseconds < 0) settings.SleepIntervalMilliseconds = 0; 
+                AddLogMessage("ОШИБКА: Строка подключения ServerOfficeConnection не найдена.");
+                _baseConnectionString = null; // Не можем работать без базового сервера
+            }
+            else
+            {
+                // Формируем базовую строку из ServerOfficeConnection, убрав Initial Catalog
+                var serverOfficeBuilder = new SqlConnectionStringBuilder(_serverOfficeConnectionString);
+                string baseServer = serverOfficeBuilder.DataSource;
+                serverOfficeBuilder.Remove("Initial Catalog"); 
+                _baseConnectionString = serverOfficeBuilder.ConnectionString; 
+                AddLogMessage($"LoadConfigurationAndSettings: Базовая строка подключения установлена на сервер: {baseServer} (из ServerOfficeConnection)");
+                AddLogMessage($"LoadConfigurationAndSettings: _baseConnectionString = '{_baseConnectionString}'", "Info"); // Добавлено
+                
+                // Если DefaultConnection существует и отличается от базового, логируем предупреждение
+                if (!string.IsNullOrEmpty(defaultConnectionString))
+                {
+                    var defaultBuilder = new SqlConnectionStringBuilder(defaultConnectionString);
+                    if (!string.Equals(defaultBuilder.DataSource, baseServer, StringComparison.OrdinalIgnoreCase))
+                    {
+                        AddLogMessage($"ПРЕДУПРЕЖДЕНИЕ: DefaultConnection ({defaultBuilder.DataSource}) отличается от базового сервера ({baseServer}) и больше не используется для основных операций.");
+                    }
+                }
+            }
 
-            CurrentSettings = settings; 
-
+            // Загрузка настроек приложения
+            var appSettings = App.Configuration.GetSection("AppSettings").Get<ApplicationSettings>() ?? new ApplicationSettings();
+            CurrentSettings = appSettings;
             AddLogMessage($"Настройки загружены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс");
+
+            // Загрузка настроек FTP
+            var ftpSettings = App.Configuration.GetSection("FtpSettings").Get<FtpSettings>() ?? new FtpSettings();
+            CurrentFtpSettings = ftpSettings;
         }
-        catch (Exception configEx) // Используем переменную
+        catch (Exception ex)
         {
-            string errorMsg = $"КРИТИЧЕСКАЯ ОШИБКА при чтении конфигурации: {configEx.Message}";
-            FileLogger.Log(errorMsg);
-            MessageBox.Show(errorMsg, "Ошибка конфигурации", MessageBoxButton.OK, MessageBoxImage.Error);
-            CurrentSettings = new ApplicationSettings(); 
+            AddLogMessage($"КРИТИЧЕСКАЯ ОШИБКА при загрузке конфигурации: {ex.Message}");
+            // Handle critical error, maybe prevent application from fully starting
+            CurrentSettings = new ApplicationSettings(); // Default settings
+            CurrentFtpSettings = new FtpSettings(); // Default settings
+            _baseConnectionString = null;
+            _iacConnectionString = null;
+            _serverOfficeConnectionString = null;
         }
     }
 
@@ -1100,7 +1605,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             // Важно: после валидации нужно обновить состояние команды
             // CommandManager.InvalidateRequerySuggested() вызывается WPF автоматически при изменении свойств,
             // но если валидация сложная, может потребоваться явный вызов
-             if (StartDownloadCommand is RelayCommand rc) rc.RaiseCanExecuteChanged();
+             if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
             
             return error;
         }
@@ -1180,4 +1685,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
     // --- Конец новых методов для UI Тем ---
+
+    // Добавляем определение для AvailableThemes
+    private ObservableCollection<ThemeInfo> _availableThemes = new ObservableCollection<ThemeInfo>();
+    public ObservableCollection<ThemeInfo> AvailableThemes
+    {
+        get => _availableThemes;
+        private set => SetProperty(ref _availableThemes, value);
+    }
 } 

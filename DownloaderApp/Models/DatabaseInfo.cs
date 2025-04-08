@@ -1,4 +1,4 @@
-namespace DownloaderApp.Models;
+namespace FileDownloader.Models;
 
 /// <summary>
 /// Представляет информацию о доступной базе данных.

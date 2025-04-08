@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace DownloaderApp.Infrastructure;
+namespace FileDownloader.Infrastructure;
 
 /// <summary>
 /// Простой статический логгер для записи в файл.
