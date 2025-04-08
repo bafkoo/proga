@@ -470,219 +470,272 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
 
         // --- Основная логика в зависимости от флага flProv ---
-        if (flProv == false) // Режим скачивания
+        try // Обернем всю обработку файла в try-finally для гарантии задержки
         {
-            if (!string.IsNullOrEmpty(pathDocument))
+            if (flProv == false) // Режим скачивания
             {
-                 Directory.CreateDirectory(pathDocument);
-            }
-            else if(srcID == 0) // Для srcID 0 может быть только имя файла без пути
-            {
-                 // Если pathDocument пустой, значит, файл должен быть в текущей директории? Уточнить логику.
-                 // Пока считаем, что fileDocument содержит полный путь или относительный от корня.
-                 // Но CreateDirectory("") вызовет ошибку.
-                 string dirOfFile = Path.GetDirectoryName(fileDocument);
-                 if (!string.IsNullOrEmpty(dirOfFile)) {
-                     Directory.CreateDirectory(dirOfFile);
-                 } else {
-                     // Если и директории нет, возможно, это корень диска? Или ошибка логики.
-                     AddLogMessage($"Предупреждение: не удалось определить директорию для создания для файла {fileDocument}");
-                 }
-            } else {
-                 throw new InvalidOperationException($"Путь к директории не определен для srcID={srcID}, file={fileDocument}");
-            }
-
-
-            if (File.Exists(fileDocument))
-            {
-                AddLogMessage($"Удаление существующего файла: {fileDocument}");
-                File.Delete(fileDocument);
-            }
-
-            await Task.Delay(CurrentSettings.SleepIntervalMilliseconds, token); // Используем паузу из настроек
-
-            // --- Скачивание ---
-            AddLogMessage($"Скачивание: {url} -> {fileDocument}");
-            long fileSize = 0;
-            try
-            {
-                Application.Current.Dispatcher.Invoke(() => CurrentFileName = originalFileName); // Обновляем UI перед скачиванием
-                await WebGetAsync(url, fileDocument, token, progress);
-
-                FileInfo fileInfo = new FileInfo(fileDocument);
-                if (fileInfo.Exists) // Проверяем, что файл реально создался
+                if (!string.IsNullOrEmpty(pathDocument))
                 {
-                     fileSize = fileInfo.Length;
-                     AddLogMessage($"Файл '{originalFileName}' скачан, размер: {fileSize} байт.");
-                } else {
-                     throw new FileNotFoundException("Файл не был создан после скачивания.", fileDocument);
+                     Directory.CreateDirectory(pathDocument);
                 }
-            }
-            catch (Exception webEx)
-            {
-                 AddLogMessage($"Ошибка скачивания файла '{originalFileName}' из {url}: {webEx.Message}");
-                 // Попытка удалить частично скачанный файл, если он есть
-                 if (File.Exists(fileDocument)) { try { File.Delete(fileDocument); } catch { /* Ignore delete error */ } }
-                 throw; // Перебрасываем ошибку
-            }
+                else if(srcID == 0) // Для srcID 0 может быть только имя файла без пути
+                {
+                     // Если pathDocument пустой, значит, файл должен быть в текущей директории? Уточнить логику.
+                     // Пока считаем, что fileDocument содержит полный путь или относительный от корня.
+                     // Но CreateDirectory("") вызовет ошибку.
+                     string dirOfFile = Path.GetDirectoryName(fileDocument);
+                     if (!string.IsNullOrEmpty(dirOfFile)) {
+                         Directory.CreateDirectory(dirOfFile);
+                     } else {
+                         // Если и директории нет, возможно, это корень диска? Или ошибка логики.
+                         AddLogMessage($"Предупреждение: не удалось определить директорию для создания для файла {fileDocument}");
+                     }
+                } else {
+                     throw new InvalidOperationException($"Путь к директории не определен для srcID={srcID}, file={fileDocument}");
+                }
 
 
-            // --- Выгрузка на FTP (если srcID == 1) ---
-            if (srcID == 1)
-            {
-                 if (string.IsNullOrWhiteSpace(ftp) || string.IsNullOrWhiteSpace(fileNameFtp)) {
-                      throw new InvalidOperationException($"Не указаны параметры FTP (ftp='{ftp}', fileNameFtp='{fileNameFtp}') для srcID=1, documentMetaID={documentMetaID}");
-                 }
-                AddLogMessage($"Выгрузка на FTP: {fileDocument} -> {ftp} (Имя: {fileNameFtp})");
+                if (File.Exists(fileDocument))
+                {
+                    AddLogMessage($"Удаление существующего файла: {fileDocument}");
+                    File.Delete(fileDocument);
+                }
+
+                // --- Скачивание с логикой повтора ---
+                AddLogMessage($"Скачивание: {url} -> {fileDocument}");
+                long fileSize = 0;
+                DownloadResult downloadResult = null; // Объявляем здесь
+                bool downloadSucceeded = false;
+                const int maxRetries = 3; // Максимальное количество повторов
+                int retryDelaySeconds = 1; // Начальная задержка перед повтором
+
                 try
                 {
-                    await FtpUploadAsync(CurrentSettings, fileDocument, fileNameFtp, token, progress);
-                    AddLogMessage($"Файл '{fileNameFtp}' выгружен на FTP.");
+                    Application.Current.Dispatcher.Invoke(() => CurrentFileName = originalFileName); // Обновляем UI перед скачиванием
+
+                    for (int attempt = 1; attempt <= maxRetries; attempt++)
+                    {
+                        token.ThrowIfCancellationRequested(); // Проверяем отмену перед каждой попыткой
+                        AddLogMessage($"Попытка скачивания #{attempt} для: {originalFileName}");
+                        downloadResult = await WebGetAsync(url, fileDocument, token, progress);
+
+                        if (downloadResult.Success)
+                        {
+                            fileSize = downloadResult.ActualSize;
+                            downloadSucceeded = true;
+                            AddLogMessage($"Файл '{originalFileName}' скачан успешно (попытка {attempt}), размер: {fileSize} байт.");
+                            break; // Выходим из цикла повторов при успехе
+                        }
+                        else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries)
+                        {
+                            AddLogMessage($"Ошибка 429 (Too Many Requests) для '{originalFileName}'. Повтор через {retryDelaySeconds} сек...");
+                            await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), token);
+                            retryDelaySeconds *= 2; // Увеличиваем задержку для следующего раза (простой exponential backoff)
+                        }
+                        else
+                        {
+                            // Другая ошибка или последняя попытка при 429 - выходим из цикла
+                            AddLogMessage($"Не удалось скачать файл '{originalFileName}' после {attempt} попыток. Ошибка: {downloadResult.ErrorMessage}");
+                            break;
+                        }
+                    }
+
+                    // Если после всех попыток загрузка не удалась
+                    if (!downloadSucceeded)
+                    {
+                        // downloadResult будет содержать информацию о последней ошибке
+                        throw new Exception($"Не удалось скачать файл '{originalFileName}' после {maxRetries} попыток. Последняя ошибка: {downloadResult?.ErrorMessage ?? "Неизвестная ошибка"}");
+                    }
+
+                    // Проверка, что файл существует (дополнительная, т.к. WebGetAsync должен это гарантировать при Success)
+                    FileInfo fileInfoCheck = new FileInfo(fileDocument);
+                    if (!fileInfoCheck.Exists || fileInfoCheck.Length != fileSize)
+                    {
+                         AddLogMessage($"ПРЕДУПРЕЖДЕНИЕ: Несоответствие файла после успешной загрузки '{originalFileName}'. Ожидался размер {fileSize}, файл существует: {fileInfoCheck.Exists}, реальный размер: {(fileInfoCheck.Exists ? fileInfoCheck.Length.ToString() : "N/A")}");
+                         // Можно решить, считать ли это критической ошибкой
+                         // throw new Exception($"Файл '{originalFileName}' поврежден или отсутствует после скачивания.");
+                    }
                 }
-                catch (Exception ftpEx)
+                catch (OperationCanceledException) { throw; } // Просто перебрасываем отмену
+                catch (Exception webEx) // Ловит исключение из цикла или из блока выше
                 {
-                    AddLogMessage($"Ошибка выгрузки на FTP для файла '{fileNameFtp}': {ftpEx.Message}");
-                     throw; // Критичная ошибка, прерываем обработку файла
+                    AddLogMessage($"Ошибка при скачивании или проверке файла '{originalFileName}': {webEx.Message}");
+                    // WebGetAsync должен сам удалять временный файл при ошибке, но проверим на всякий случай
+                    if (File.Exists(fileDocument) && downloadResult != null && !downloadResult.Success)
+                    {
+                        try { File.Delete(fileDocument); } catch { /* Ignore delete error */ }
+                    }
+                    throw; // Перебрасываем ошибку дальше
                 }
-            }
-
-            // --- Запись метаданных в базу IAC ---
-            AddLogMessage($"Запись метаданных в IAC для documentMetaID: {documentMetaID}");
-            using (SqlConnection conBaseI = new SqlConnection(iacConnectionString))
-            {
-                 await conBaseI.OpenAsync(token);
-                 using (SqlCommand cmdInsert = new SqlCommand("documentMetaPathInsert", conBaseI) { CommandType = CommandType.StoredProcedure, CommandTimeout = 300 })
-                 {
-                      cmdInsert.Parameters.Add("@databaseName", SqlDbType.VarChar, 50).Value = databaseName;
-                      cmdInsert.Parameters.Add("@computerName", SqlDbType.VarChar, 50).Value = computerName;
-                      cmdInsert.Parameters.Add("@directoryName", SqlDbType.VarChar, 50).Value = directoryName;
-                      cmdInsert.Parameters.Add("@processID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
-                      cmdInsert.Parameters.Add("@themeID", SqlDbType.Int).Value = themeId;
-                      cmdInsert.Parameters.Add("@year", SqlDbType.Int).Value = publishDate.Year;
-                      cmdInsert.Parameters.Add("@month", SqlDbType.Int).Value = publishDate.Month;
-                      cmdInsert.Parameters.Add("@day", SqlDbType.Int).Value = publishDate.Day;
-
-                      if (databaseName == "fcsNotification" || databaseName == "contract" || databaseName == "purchaseNotice" || databaseName == "requestQuotation")
-                      {
-                          cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = urlIdFromDb?.ToString() ?? (object)DBNull.Value;
-                          cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
-                      }
-                      else
-                      {
-                          cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = DBNull.Value;
-                          if (urlIdFromDb != null && int.TryParse(urlIdFromDb.ToString(), out int urlIdInt))
-                              cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = urlIdInt;
-                          else
-                              cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
-                      }
-
-                      cmdInsert.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
-                      cmdInsert.Parameters.Add("@fileName", SqlDbType.VarChar, 250).Value = originalFileName;
-                      cmdInsert.Parameters.Add("@suffixName", SqlDbType.VarChar, 50).Value = suffixName;
-                      cmdInsert.Parameters.Add("@expName", SqlDbType.VarChar, 10).Value = expName;
-                      cmdInsert.Parameters.Add("@docDescription", SqlDbType.VarChar, 250).Value = docDescription;
-                      cmdInsert.Parameters.Add("@fileSize", SqlDbType.Decimal).Value = fileSize;
-                      cmdInsert.Parameters.Add("@srcID", SqlDbType.Int).Value = srcID;
-                      cmdInsert.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
-                      cmdInsert.Parameters.Add("@documentMetaPathID", SqlDbType.Int).Value = documentMetaPathID;
-
-                      await cmdInsert.ExecuteNonQueryAsync(token);
-                      AddLogMessage($"Метаданные для documentMetaID: {documentMetaID} записаны в IAC.");
-                 }
-            }
 
 
-            // --- Обновление флага в основной базе (для srcID 0 и 1) ---
-            if (srcID == 0 || srcID == 1)
-            {
-                 AddLogMessage($"Обновление флага для documentMetaID: {documentMetaID} в базе {databaseName}");
-                 using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
-                 {
-                      await conBase.OpenAsync(token);
-                      using (SqlCommand cmdUpdate = new SqlCommand("documentMetaUpdateFlag", conBase) { CommandType = CommandType.StoredProcedure })
-                      {
-                           cmdUpdate.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
-                           cmdUpdate.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
-                           cmdUpdate.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
-                           await cmdUpdate.ExecuteNonQueryAsync(token);
-                           AddLogMessage($"Флаг для documentMetaID: {documentMetaID} обновлен.");
-                      }
-                 }
-            }
-
-             // --- Удаление временного файла (для srcID == 1) ---
-            if (srcID == 1 && File.Exists(fileDocument))
-            {
-                 AddLogMessage($"Удаление временного файла после FTP: {fileDocument}");
-                 File.Delete(fileDocument);
-            }
-        }
-        else // Режим проверки ошибок (flProv == true)
-        {
-            AddLogMessage($"Проверка файла: {fileDocument}");
-            FileInfo fileInfo = new FileInfo(fileDocument);
-
-            bool deleteFile = false;
-            string deleteReason = "";
-
-            if (!fileInfo.Exists)
-            {
-                 AddLogMessage($"Файл {fileDocument} не найден. Проверка пропущена.");
-                 // Возможно, стоит вызвать documentMetaUpdateFlagDelete, если файла нет? Уточнить логику.
-                 // deleteFile = true; deleteReason = "Файл не существует.";
-            }
-            else
-            {
-                 if (fileInfo.Length > 0 && fileInfo.Length < 700)
-                 {
-                     deleteFile = true;
-                     deleteReason = $"Файл слишком маленький ({fileInfo.Length} байт).";
-                 }
-                 else if (fileInfo.Length == 0)
-                 {
-                      deleteFile = true;
-                      deleteReason = "Файл пустой (0 байт).";
-                 }
-                 else
-                 {
-                      AddLogMessage($"Файл {fileDocument} существует, размер {fileInfo.Length} байт. Проверка пройдена.");
-                 }
-            }
-
-
-            if (deleteFile)
-            {
-                 AddLogMessage($"Удаление некорректного файла: {fileDocument}. Причина: {deleteReason}");
-                 try
-                 {
-                     if (fileInfo.Exists) // Удаляем только если он есть
-                     {
-                         fileInfo.Delete();
+                // --- Выгрузка на FTP (если srcID == 1) ---
+                if (srcID == 1)
+                {
+                     if (string.IsNullOrWhiteSpace(ftp) || string.IsNullOrWhiteSpace(fileNameFtp)) {
+                          throw new InvalidOperationException($"Не указаны параметры FTP (ftp='{ftp}', fileNameFtp='{fileNameFtp}') для srcID=1, documentMetaID={documentMetaID}");
                      }
+                    AddLogMessage($"Выгрузка на FTP: {fileDocument} -> {ftp} (Имя: {fileNameFtp})");
+                    try
+                    {
+                        await FtpUploadAsync(CurrentSettings, fileDocument, fileNameFtp, token, progress);
+                        AddLogMessage($"Файл '{fileNameFtp}' выгружен на FTP.");
+                    }
+                    catch (Exception ftpEx)
+                    {
+                        AddLogMessage($"Ошибка выгрузки на FTP для файла '{fileNameFtp}': {ftpEx.Message}");
+                         throw; // Критичная ошибка, прерываем обработку файла
+                    }
+                }
 
-                     // Выполняем процедуру удаления флага/записи
-                     AddLogMessage($"Вызов documentMetaUpdateFlagDelete для documentMetaID: {documentMetaID}");
+                // --- Запись метаданных в базу IAC ---
+                AddLogMessage($"Запись метаданных в IAC для documentMetaID: {documentMetaID}");
+                using (SqlConnection conBaseI = new SqlConnection(iacConnectionString))
+                {
+                     await conBaseI.OpenAsync(token);
+                     using (SqlCommand cmdInsert = new SqlCommand("documentMetaPathInsert", conBaseI) { CommandType = CommandType.StoredProcedure, CommandTimeout = 300 })
+                     {
+                          cmdInsert.Parameters.Add("@databaseName", SqlDbType.VarChar, 50).Value = databaseName;
+                          cmdInsert.Parameters.Add("@computerName", SqlDbType.VarChar, 50).Value = computerName;
+                          cmdInsert.Parameters.Add("@directoryName", SqlDbType.VarChar, 50).Value = directoryName;
+                          cmdInsert.Parameters.Add("@processID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
+                          cmdInsert.Parameters.Add("@themeID", SqlDbType.Int).Value = themeId;
+                          cmdInsert.Parameters.Add("@year", SqlDbType.Int).Value = publishDate.Year;
+                          cmdInsert.Parameters.Add("@month", SqlDbType.Int).Value = publishDate.Month;
+                          cmdInsert.Parameters.Add("@day", SqlDbType.Int).Value = publishDate.Day;
+
+                          if (databaseName == "fcsNotification" || databaseName == "contract" || databaseName == "purchaseNotice" || databaseName == "requestQuotation")
+                          {
+                              cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = urlIdFromDb?.ToString() ?? (object)DBNull.Value;
+                              cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
+                          }
+                          else
+                          {
+                              cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = DBNull.Value;
+                              if (urlIdFromDb != null && int.TryParse(urlIdFromDb.ToString(), out int urlIdInt))
+                                  cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = urlIdInt;
+                              else
+                                  cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
+                          }
+
+                          cmdInsert.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
+                          cmdInsert.Parameters.Add("@fileName", SqlDbType.VarChar, 250).Value = originalFileName;
+                          cmdInsert.Parameters.Add("@suffixName", SqlDbType.VarChar, 50).Value = suffixName;
+                          cmdInsert.Parameters.Add("@expName", SqlDbType.VarChar, 10).Value = expName;
+                          cmdInsert.Parameters.Add("@docDescription", SqlDbType.VarChar, 250).Value = docDescription;
+                          cmdInsert.Parameters.Add("@fileSize", SqlDbType.Decimal).Value = fileSize;
+                          cmdInsert.Parameters.Add("@srcID", SqlDbType.Int).Value = srcID;
+                          cmdInsert.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
+                          cmdInsert.Parameters.Add("@documentMetaPathID", SqlDbType.Int).Value = documentMetaPathID;
+
+                          await cmdInsert.ExecuteNonQueryAsync(token);
+                          AddLogMessage($"Метаданные для documentMetaID: {documentMetaID} записаны в IAC.");
+                     }
+                }
+
+
+                // --- Обновление флага в основной базе (для srcID 0 и 1) ---
+                if (srcID == 0 || srcID == 1)
+                {
+                     AddLogMessage($"Обновление флага для documentMetaID: {documentMetaID} в базе {databaseName}");
                      using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
                      {
                           await conBase.OpenAsync(token);
-                          using (SqlCommand cmdUpdateDelete = new SqlCommand("documentMetaUpdateFlagDelete", conBase) { CommandType = CommandType.StoredProcedure })
+                          using (SqlCommand cmdUpdate = new SqlCommand("documentMetaUpdateFlag", conBase) { CommandType = CommandType.StoredProcedure })
                           {
-                               cmdUpdateDelete.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
-                               cmdUpdateDelete.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
-                               cmdUpdateDelete.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
-                               await cmdUpdateDelete.ExecuteNonQueryAsync(token);
-                               AddLogMessage($"Запись для documentMetaID: {documentMetaID} помечена на удаление.");
+                               cmdUpdate.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
+                               cmdUpdate.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
+                               cmdUpdate.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
+                               await cmdUpdate.ExecuteNonQueryAsync(token);
+                               AddLogMessage($"Флаг для documentMetaID: {documentMetaID} обновлен.");
                           }
                      }
-                 }
-                 catch (Exception delEx)
-                 {
-                      AddLogMessage($"ОШИБКА при удалении файла или обновлении флага для documentMetaID {documentMetaID}: {delEx.Message}");
-                     throw; // Перебрасываем
-                 }
+                }
+
+                 // --- Удаление временного файла (для srcID == 1) ---
+                if (srcID == 1 && File.Exists(fileDocument))
+                {
+                     AddLogMessage($"Удаление временного файла после FTP: {fileDocument}");
+                     File.Delete(fileDocument);
+                }
+            }
+            else // Режим проверки ошибок (flProv == true)
+            {
+                AddLogMessage($"Проверка файла: {fileDocument}");
+                FileInfo fileInfo = new FileInfo(fileDocument);
+
+                bool deleteFile = false;
+                string deleteReason = "";
+
+                if (!fileInfo.Exists)
+                {
+                     AddLogMessage($"Файл {fileDocument} не найден. Проверка пропущена.");
+                     // Возможно, стоит вызвать documentMetaUpdateFlagDelete, если файла нет? Уточнить логику.
+                     // deleteFile = true; deleteReason = "Файл не существует.";
+                }
+                else
+                {
+                     if (fileInfo.Length > 0 && fileInfo.Length < 700)
+                     {
+                         deleteFile = true;
+                         deleteReason = $"Файл слишком маленький ({fileInfo.Length} байт).";
+                     }
+                     else if (fileInfo.Length == 0)
+                     {
+                          deleteFile = true;
+                          deleteReason = "Файл пустой (0 байт).";
+                     }
+                     else
+                     {
+                          AddLogMessage($"Файл {fileDocument} существует, размер {fileInfo.Length} байт. Проверка пройдена.");
+                     }
+                }
+
+
+                if (deleteFile)
+                {
+                     AddLogMessage($"Удаление некорректного файла: {fileDocument}. Причина: {deleteReason}");
+                     try
+                     {
+                         if (fileInfo.Exists) // Удаляем только если он есть
+                         {
+                             fileInfo.Delete();
+                         }
+
+                         // Выполняем процедуру удаления флага/записи
+                         AddLogMessage($"Вызов documentMetaUpdateFlagDelete для documentMetaID: {documentMetaID}");
+                         using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
+                         {
+                              await conBase.OpenAsync(token);
+                              using (SqlCommand cmdUpdateDelete = new SqlCommand("documentMetaUpdateFlagDelete", conBase) { CommandType = CommandType.StoredProcedure })
+                              {
+                                   cmdUpdateDelete.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
+                                   cmdUpdateDelete.Parameters.Add("@prcID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
+                                   cmdUpdateDelete.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
+                                   await cmdUpdateDelete.ExecuteNonQueryAsync(token);
+                                   AddLogMessage($"Запись для documentMetaID: {documentMetaID} помечена на удаление.");
+                              }
+                         }
+                     }
+                     catch (Exception delEx)
+                     {
+                          AddLogMessage($"ОШИБКА при удалении файла или обновлении флага для documentMetaID {documentMetaID}: {delEx.Message}");
+                         throw; // Перебрасываем
+                     }
+                }
             }
         }
-    }
+        finally
+        {
+            // --- Задержка после обработки файла ---
+            // Эта задержка выполняется ВСЕГДА после попытки обработки файла (успешной или нет),
+            // чтобы снизить общую частоту запросов к серверу для СЛЕДУЮЩЕГО файла.
+            if (!token.IsCancellationRequested) // Не ждем, если отмена
+            {
+                await Task.Delay(CurrentSettings.SleepIntervalMilliseconds, CancellationToken.None); // Используем CancellationToken.None, чтобы задержка выполнилась даже при отмене *во время* ее ожидания
+            }
+        }
+    } // Конец метода ProcessFileAsync
 
     private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) }; // Увеличим таймаут
 

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using System.IO;
 using DownloaderApp.Infrastructure; // Для FileLogger
 using System.Windows.Threading; // Для DispatcherUnhandledExceptionEventArgs
+using System.Linq; // Добавлено для очистки логов
 
 namespace DownloaderApp
 {
@@ -21,6 +22,43 @@ namespace DownloaderApp
             // Логи будут сохраняться в подпапку Logs рядом с exe
             FileLogger.Initialize(); 
             FileLogger.Log("Приложение запускается...");
+
+            // Очистка старых лог-файлов
+            try
+            {
+                string logDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Logs");
+                if (Directory.Exists(logDirectory))
+                {
+                    var logFiles = Directory.GetFiles(logDirectory, "*.log")
+                                            .Select(f => new FileInfo(f))
+                                            .OrderBy(f => f.CreationTimeUtc)
+                                            .ToList();
+
+                    int maxLogFiles = 10; // Максимальное количество лог-файлов
+                    if (logFiles.Count > maxLogFiles)
+                    {
+                        int filesToDeleteCount = logFiles.Count - maxLogFiles;
+                        FileLogger.Log($"Обнаружено {logFiles.Count} лог-файлов. Удаление {filesToDeleteCount} самых старых...");
+                        for (int i = 0; i < filesToDeleteCount; i++)
+                        {
+                            try
+                            {
+                                logFiles[i].Delete();
+                                FileLogger.Log($"Удален старый лог-файл: {logFiles[i].Name}");
+                            }
+                            catch (Exception deleteEx)
+                            {
+                                FileLogger.Log($"Не удалось удалить лог-файл {logFiles[i].Name}: {deleteEx.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception cleanupEx)
+            {
+                FileLogger.Log($"Ошибка при очистке старых лог-файлов: {cleanupEx.Message}");
+                // Не прерываем запуск приложения из-за ошибки очистки логов
+            }
 
             // Добавляем обработчик необработанных исключений UI-потока
             this.DispatcherUnhandledException += App_DispatcherUnhandledException;
