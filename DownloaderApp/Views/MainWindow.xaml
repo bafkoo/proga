@@ -139,13 +139,25 @@
 
                     <!-- Прогресс-бары -->
                     <StackPanel Grid.Row="3" Orientation="Vertical" Margin="5,15,5,5" VerticalAlignment="Center" HorizontalAlignment="Stretch">
-                        <TextBlock Text="Текущий файл:" Margin="0,0,0,5" HorizontalAlignment="Left"/>
-                        <ProgressBar Height="15" Value="{Binding CurrentFileProgress}" 
-                                   Maximum="100" Margin="0,0,0,10"/>
+                        <!-- Remove current file progress bar -->
+                        <!-- <TextBlock Text="Текущий файл:" Margin="0,0,0,5" HorizontalAlignment="Left"/> -->
+                        <!-- <ProgressBar Height="15" Value="{Binding CurrentFileProgress}" -->
+                        <!--              Maximum="100" Margin="0,0,0,10"/> -->
+                        
+                        <!-- Add counter text block -->
+                        <TextBlock HorizontalAlignment="Left" Margin="0,0,0,2">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} / {1} файлов">
+                                    <Binding Path="ProcessedFiles" FallbackValue="0"/>
+                                    <Binding Path="TotalFiles" FallbackValue="0"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
                         
                         <TextBlock Text="Общий прогресс:" Margin="0,0,0,5" HorizontalAlignment="Left"/>
-                        <ProgressBar Height="15" Value="{Binding TotalProgress}" 
-                                   Maximum="100" Margin="0,0,0,10"/>
+                        <!-- Rebind overall progress bar and set Mode=OneWay -->
+                        <ProgressBar Height="15" Value="{Binding ProcessedFiles, Mode=OneWay}" 
+                                   Maximum="{Binding TotalFiles}" Margin="0,0,0,10"/>
                     </StackPanel>
 
                     <Button Grid.Row="4" 
