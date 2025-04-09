@@ -1,0 +1,16 @@
+﻿2025-04-09 10:06:42.279 | Приложение запускается...
+2025-04-09 10:06:42.284 | Обнаружено 11 лог-файлов. Удаление 1 самых старых...
+2025-04-09 10:06:42.284 | Удален старый лог-файл: DownloaderAppLog_20250408_201733.log
+2025-04-09 10:06:42.298 | Конфигурация загружена.
+2025-04-09 10:06:42.430 | Конструктор DownloaderViewModel: Начало
+2025-04-09 10:06:42.432 | Retrieved BaseConnectionString: 'Data Source=85.173.112.233;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-09 10:06:42.433 | Retrieved IacConnectionString: 'Data Source=195.93.180.108;Initial Catalog=zakupkiWeb;User ID=sa;Password=fyfkbnbrf-2011*;TrustServerCertificate=True'
+2025-04-09 10:06:42.433 | Retrieved ServerOfficeConnectionString: 'Data Source=85.173.112.233;Initial Catalog=IAC;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-09 10:06:42.443 | Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен
+2025-04-09 10:06:42.584 | Конструктор DownloaderViewModel: LoadAvailableDatabases завершен
+2025-04-09 10:06:42.763 | Конструктор DownloaderViewModel: LoadAvailableThemes завершен
+2025-04-09 10:06:42.767 | Обнаружена текущая UI тема: Light.Blue
+2025-04-09 10:06:42.767 | Конструктор DownloaderViewModel: LoadUiThemesAndAccents завершен
+2025-04-09 10:06:42.767 | Конструктор DownloaderViewModel: Команды инициализированы
+2025-04-09 10:06:42.767 | Конструктор DownloaderViewModel: Завершен
+2025-04-09 10:06:42.981 | MainWindow создано и показано.

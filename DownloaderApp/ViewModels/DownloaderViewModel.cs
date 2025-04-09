@@ -1405,7 +1405,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         try
         {
-            var databases = new[] { "notificationEF", "notificationZK", "notificationOK", "fcsNotification", "contract", "purchaseNotice", "requestQuotation" };
+            // Удаляем "notificationEF", "notificationZK", "notificationOK" из списка
+            var databases = new[] { "fcsNotification", "contract", "purchaseNotice", "requestQuotation" };
             var availableDbs = new List<DatabaseInfo>();
 
             AddLogMessage($"LoadAvailableDatabases: Начало цикла проверки {databases.Length} баз данных.", "Info"); // Добавлено
@@ -1413,14 +1414,27 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             {
                 try
                 {
-                    var connectionString = _baseConnectionString.Replace("Initial Catalog=notificationEF", $"Initial Catalog={db}"); // Оставим Replace пока что
+                    // Убираем Replace, так как базовое имя БД теперь не важно
+                    var connectionString = _baseConnectionString + $";Initial Catalog={db}";
                     AddLogMessage($"LoadAvailableDatabases: Попытка подключения к {db} ({connectionString})", "Info"); // Добавлено
                     using (var connection = new SqlConnection(connectionString))
                     {
                         // Установим короткий таймаут для быстрой проверки
                         connection.Open(); // Используем стандартный таймаут
-                        availableDbs.Add(new DatabaseInfo { Name = db });
-                        AddLogMessage($"LoadAvailableDatabases: База данных {db} доступна.", "Success"); // Изменено
+
+                        // Формируем DisplayName
+                        string displayName;
+                        switch (db)
+                        {
+                            case "fcsNotification": displayName = "Извещения 44 (fcsNotification)"; break;
+                            case "contract": displayName = "Контракт (contract)"; break;
+                            case "purchaseNotice": displayName = "Извещения 223 (purchaseNotice)"; break;
+                            case "requestQuotation": displayName = "Запрос цен (requestQuotation)"; break;
+                            default: displayName = db; break; // На случай, если появятся другие
+                        }
+
+                        availableDbs.Add(new DatabaseInfo { Name = db, DisplayName = displayName });
+                        AddLogMessage($"LoadAvailableDatabases: База данных {displayName} доступна.", "Success"); // Изменено
                     }
                 }
                 catch (Exception ex)

@@ -421,3 +421,4 @@ E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.dll
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\refint\FileDownloader.dll
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.pdb
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\ref\FileDownloader.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_Content.g.cs

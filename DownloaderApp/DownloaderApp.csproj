@@ -11,14 +11,15 @@
     <!-- <ApplicationIcon>Assets/app_icon.ico</ApplicationIcon> -->
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- <Resource Include="Assets/app_icon.ico" /> -->
+  <ItemGroup><!-- <Resource Include="Assets/app_icon.ico" /> -->
+  
+    <None Remove="appsettings.json" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="appsettings.json">
+    <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
