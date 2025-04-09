@@ -32,6 +32,50 @@ using static System.Windows.Clipboard;
 using Serilog;
 using Serilog.Events;
 
+// --- Добавляем класс для хранения статистики по датам ---
+public class DailyFileCount : INotifyPropertyChanged // Реализуем интерфейс
+{
+    private int _processedCount;
+    private int _count;
+    private DateTime _date;
+
+    public DateTime Date
+    {
+        get => _date;
+        set => SetProperty(ref _date, value);
+    }
+
+    public int Count // Общее количество файлов на дату
+    {
+        get => _count;
+        set => SetProperty(ref _count, value);
+    }
+
+    public int ProcessedCount // Количество обработанных файлов на дату
+    {
+        get => _processedCount;
+        set => SetProperty(ref _processedCount, value);
+    }
+
+    // --- Реализация INotifyPropertyChanged ---
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+    // --- Конец реализации INotifyPropertyChanged ---
+}
+// --- Конец класса DailyFileCount ---
+
 // --- Добавляем класс DownloadResult ---
 public class DownloadResult
 {
@@ -274,6 +318,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     public ICommand ClearLogCommand { get; }
     public ICommand CopyLogToClipboardCommand { get; }
 
+    // --- Новая коллекция для статистики по датам ---
+    public ObservableCollection<DailyFileCount> FileCountsPerDate { get; } = new ObservableCollection<DailyFileCount>();
+
     // --- CancellationTokenSource ---
     private CancellationTokenSource _cancellationTokenSource;
 
@@ -475,6 +522,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
 
         LogMessages.Clear();
+        // Очищаем статистику перед началом
+        FileCountsPerDate.Clear(); 
         AddLogMessage("Начало загрузки...");
         TotalFiles = 0;
         ProcessedFiles = 0;
@@ -510,9 +559,44 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     {
                         AddLogMessage("Получение списка файлов...");
                         await conBase.OpenAsync(token);
+                        // Вызов вспомогательного метода для получения данных
                         dtTab = await FetchFileListAsync(conBase, BeginDate, EndDate, themeId, srcID, SelectedFilterId, flProv, token);
+                        // Устанавливаем TotalFiles сразу после получения данных
                         TotalFiles = dtTab?.Rows.Count ?? 0;
                         AddLogMessage($"Получено {TotalFiles} файлов для обработки.");
+
+                        // Подсчет статистики по датам
+                        if (dtTab != null && TotalFiles > 0)
+                        {
+                            try
+                            {
+                                var counts = dtTab.AsEnumerable()
+                                    .Where(row => row["publishDate"] != DBNull.Value) // Добавлена проверка на DBNull
+                                    .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date) // Группируем по дате (без времени)
+                                    .Select(g => new DailyFileCount { Date = g.Key, Count = g.Count() })
+                                    .OrderBy(dc => dc.Date); // Сортируем по дате
+
+                                // Обновляем коллекцию в UI потоке
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    FileCountsPerDate.Clear(); // На всякий случай очищаем еще раз внутри Dispatcher
+                                    foreach (var item in counts)
+                                    {
+                                        FileCountsPerDate.Add(item);
+                                    }
+                                });
+                                AddLogMessage($"Статистика по датам рассчитана ({FileCountsPerDate.Count} дат).");
+                            }
+                            catch (Exception statEx)
+                            {
+                                AddLogMessage($"Ошибка при подсчете статистики по датам: {statEx.Message}");
+                            }
+                        }
+                        else
+                        {
+                             // Если файлов нет, убедимся, что коллекция пуста
+                            Application.Current.Dispatcher.Invoke(() => FileCountsPerDate.Clear());
+                        }
 
                         // Получаем базовый путь, если есть файлы и srcID=0 (для других srcID путь формируется иначе)
                         if (TotalFiles > 0 && srcID == 0)
@@ -547,6 +631,27 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             await ProcessFileAsync(row, targetDbConnectionString, iacConnectionString, databaseName, srcID, flProv, themeId, token, progressReporter);
                             long currentCount = Interlocked.Increment(ref processedFilesCounter);
                             Application.Current.Dispatcher.Invoke(() => ProcessedFiles = (int)currentCount); // Обновляем UI потокобезопасно
+
+                            // --- Обновление статистики по датам ---
+                            try
+                            {
+                                if (row["publishDate"] != DBNull.Value)
+                                {
+                                    var fileDate = DateTime.Parse(row["publishDate"].ToString()).Date;
+                                    var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == fileDate);
+                                    if (dailyStat != null)
+                                    {
+                                        Application.Current.Dispatcher.Invoke(() => dailyStat.ProcessedCount++);
+                                    }
+                                }
+                            }
+                            catch(Exception statUpdateEx)
+                            {
+                                // Логируем ошибку обновления статистики, но не прерываем процесс
+                                AddLogMessage($"Ошибка при обновлении статистики для файла {currentFileNameLocal}: {statUpdateEx.Message}", "Warning");
+                            }
+                            // --- Конец обновления статистики по датам ---
+
                             AddLogMessage($"Завершено: {currentFileNameLocal} ({currentCount}/{TotalFiles})");
                         }
                         catch (OperationCanceledException) { AddLogMessage($"Отменена обработка для файла: {row["fileName"]}"); }
