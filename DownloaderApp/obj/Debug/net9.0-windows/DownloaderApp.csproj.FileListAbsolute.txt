@@ -422,3 +422,5 @@ E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\refint\FileDownloa
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.pdb
 E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\ref\FileDownloader.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_Content.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\SharpCompress.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\ZstdSharp.dll

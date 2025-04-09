@@ -1049,18 +1049,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             AddLogMessage($"Архив '{originalFileName}' успешно распакован в {extractionPath}");
 
                             // ОПЦИОНАЛЬНО: Удалить исходный архив после успешной распаковки
-                            // if (CurrentSettings.DeleteArchiveAfterExtraction) // Пример условия из настроек
-                            // {
-                            //     try
-                            //     {
-                            //         File.Delete(fileDocument);
-                            //         AddLogMessage($"Исходный архив '{originalFileName}' удален.");
-                            //     }
-                            //     catch (Exception deleteEx)
-                            //     {
-                            //         AddLogMessage($"Ошибка при удалении исходного архива '{originalFileName}': {deleteEx.Message}", "Error");
-                            //     }
-                            // }
+                            // Удаляем внешний if, оставляем только try-catch
+                            try
+                            {
+                                File.Delete(fileDocument);
+                                AddLogMessage($"Исходный архив '{originalFileName}' удален.");
+                            }
+                            catch (Exception deleteEx)
+                            {
+                                AddLogMessage($"Ошибка при удалении исходного архива '{originalFileName}': {deleteEx.Message}", "Error");
+                            }
                         }
                         catch (OperationCanceledException)
                         {
