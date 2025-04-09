@@ -57,6 +57,7 @@ C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\Microsoft.Xaml.Behaviors.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\Serilog.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\Serilog.Sinks.File.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\SharpCompress.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\SQLitePCLRaw.batteries_v2.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\SQLitePCLRaw.core.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\SQLitePCLRaw.provider.e_sqlite3.dll
@@ -64,6 +65,7 @@ C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\System.Diagnostics.EventLog.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\System.IdentityModel.Tokens.Jwt.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\System.Memory.Data.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\ZstdSharp.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\de\MahApps.Metro.resources.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\cs\Microsoft.Data.SqlClient.resources.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\app.publish\de\Microsoft.Data.SqlClient.resources.dll

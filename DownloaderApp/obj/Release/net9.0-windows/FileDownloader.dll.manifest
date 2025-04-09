@@ -134,31 +134,31 @@
       <dsig:DigestValue>Wv2BEL2KbRoLaIZLhhr4LuBBy0zt/sh9+G3sM7TV74A=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.deps.json" size="60926">
+  <file name="FileDownloader.deps.json" size="62450">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>srQQQp5oBkOSsKdDOdXOICryNEbQyW2ZGtYdGVRkd1I=</dsig:DigestValue>
+      <dsig:DigestValue>YZ326yHrMND6BD7SfDyHVmY86wLuCCduS5xNA/LHfAk=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.dll" size="103432">
+  <file name="FileDownloader.dll" size="107528">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>dT4xo64pxkpD5ZPinvwH7UpH3yWgLxWFelZN8sc+PJU=</dsig:DigestValue>
+      <dsig:DigestValue>+LL53GRonzC3siYqm+ctme/WN6sWGgvwz9Rx3Jcd+6k=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.exe" size="148488">
+  <file name="FileDownloader.exe" size="147976">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>iCwcHoflqqPIxV3hquYtcbQa2pFUjTBOljzeWrQZInY=</dsig:DigestValue>
+      <dsig:DigestValue>KORBU1l598jZnXXJuYDRFjaSCuMbzYqWn8GGmso55Z4=</dsig:DigestValue>
     </hash>
   </file>
   <file name="FileDownloader.runtimeconfig.json" size="583">
@@ -908,6 +908,15 @@
       <dsig:DigestValue>GSqX9qLkCMNtnsig7ua7ozpRbd7fNmLAMdiOdEYp+ZE=</dsig:DigestValue>
     </hash>
   </file>
+  <file name="SharpCompress.dll" size="606720">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
+      <dsig:DigestValue>w9WItaqN2qXR1/BpxDwNLvYolkfsZJll90aaBmQbG30=</dsig:DigestValue>
+    </hash>
+  </file>
   <file name="SQLitePCLRaw.batteries_v2.dll" size="5120">
     <hash>
       <dsig:Transforms>
@@ -996,6 +1005,15 @@
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
       <dsig:DigestValue>OznuEt25g+EiNgr1HRz3FRfoCFq9/y2VuWdCUQUonUM=</dsig:DigestValue>
+    </hash>
+  </file>
+  <file name="ZstdSharp.dll" size="392704">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
+      <dsig:DigestValue>9EWcit3IzYWIs1O/TU09zx+fMmcj3Wv190LDtv5i5tY=</dsig:DigestValue>
     </hash>
   </file>
 </asmv1:assembly>

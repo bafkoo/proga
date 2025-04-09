@@ -36,6 +36,8 @@ using Microsoft.Data.Sqlite; // Добавлено для Sqlite
 using SharpCompress.Archives; // <-- Добавлено
 using SharpCompress.Common; // <-- Добавлено
 using System.IO.Compression; // <-- Для Zip (если понадобится отдельно)
+using System.Collections.Concurrent; // Для потокобезопасной коллекции
+using System.Text.RegularExpressions;
 
 // --- Добавляем класс для хранения статистики по датам ---
 public class DailyFileCount : INotifyPropertyChanged // Реализуем интерфейс
@@ -322,6 +324,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     public ICommand OpenSettingsCommand { get; }
     public ICommand ClearLogCommand { get; }
     public ICommand CopyLogToClipboardCommand { get; }
+    public ICommand OpenLogDirectoryCommand { get; }
 
     // --- Новая коллекция для статистики по датам ---
     public ObservableCollection<DailyFileCount> FileCountsPerDate { get; } = new ObservableCollection<DailyFileCount>();
@@ -480,6 +483,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             () => SetText(string.Join(Environment.NewLine, LogMessages)),
             () => LogMessages.Count > 0
         );
+        OpenLogDirectoryCommand = new RelayCommand<LogMessage>(OpenLogDirectory, CanOpenLogDirectory);
         FileLogger.Log("Конструктор DownloaderViewModel: Команды инициализированы");
 
         StatusMessage = "Готов"; // Начальный статус
@@ -490,240 +494,275 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task StartDownloadAsync()
     {
-        if (SelectedTheme == null)
-        {
-            AddLogMessage("ОШИБКА: Не выбрана тема");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(SelectedDatabase?.Name))
-        {
-            AddLogMessage("ОШИБКА: Не выбрана база данных");
-            return;
-        }
-
-        if (BeginDate == default || EndDate == default)
-        {
-            AddLogMessage("ОШИБКА: Не выбран диапазон дат");
-            return;
-        }
-
-        if (EndDate < BeginDate)
-        {
-            AddLogMessage("ОШИБКА: Дата окончания меньше даты начала");
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(Error) || SelectedDatabase == null || SelectedTheme == null)
-        { AddLogMessage("Ошибка валидации параметров. Загрузка не начата."); return; }
-        if (IsDownloading) return;
-
+        // --- Инициализация перед началом ---
         _cancellationTokenSource = new CancellationTokenSource();
         var token = _cancellationTokenSource.Token;
-
         IsDownloading = true;
         (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
         (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
-        (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged(); // Блокируем настройки во время загрузки
 
+        // Отслеживание уже обработанных файлов в ЭТОМ сеансе
+        var processedFileIdsInThisSession = new ConcurrentDictionary<int, bool>(); // Используем ConcurrentDictionary для потокобезопасности
+
+        // Переменные для статистики и статуса
+        long processedFilesCounter = 0;
+        string finalStatus = "Загрузка завершена.";
+        string basePath = null; // Переменная для хранения базового пути
+        StatusMessage = "Инициализация...";
         LogMessages.Clear();
-        // Очищаем статистику перед началом
-        FileCountsPerDate.Clear(); 
-        AddLogMessage("Начало загрузки...");
-        TotalFiles = 0;
-        ProcessedFiles = 0;
-        CurrentFileName = "";
-        StatusMessage = "Загрузка..."; // Статус в начале загрузки
+        FileCountsPerDate.Clear();
+        AddLogMessage("Запуск процесса загрузки...");
 
+        // Получаем параметры из UI один раз
         string databaseName = SelectedDatabase.Name;
         int themeId = SelectedTheme.Id;
         int srcID = SelectedSourceId;
         bool flProv = CheckProvError;
+        DateTime dtB = BeginDate.Date; // Убедимся, что время 00:00:00
+        DateTime dtE = EndDate.Date.AddDays(1).AddTicks(-1); // Включаем весь конечный день до 23:59:59.9999999
+        int filterId = SelectedFilterId;
 
-        bool success = false;
-        int retryCount = 0;
-        const int maxRetries = 3;
         var semaphore = new SemaphoreSlim(CurrentSettings.MaxParallelDownloads);
-
         var conStrBuilder = new SqlConnectionStringBuilder(_baseConnectionString) { InitialCatalog = databaseName };
         string targetDbConnectionString = conStrBuilder.ConnectionString;
-        string iacConnectionString = _iacConnectionString;
+        string iacConnectionString = _iacConnectionString; // Предполагаем, что это тоже нужно передавать?
 
-        long processedFilesCounter = 0;
-        IProgress<double> progressReporter = null;
-        string basePath = null; // Переменная для хранения базового пути
+        TimeSpan checkInterval = TimeSpan.FromMinutes(30); // Интервал между проверками новых файлов
+        bool firstCheck = true; // Флаг для первой проверки
 
         try
         {
-            while (!success && retryCount < maxRetries && !token.IsCancellationRequested)
+            // --- Основной цикл мониторинга ---
+            while (DateTime.Now <= dtE && !token.IsCancellationRequested)
             {
+                if (!firstCheck)
+                {
+                    AddLogMessage($"Ожидание {checkInterval.TotalMinutes} минут перед следующей проверкой новых файлов...");
+                    await Task.Delay(checkInterval, token); // Пауза перед следующей проверкой, прерываемая отменой
+                }
+                firstCheck = false;
+
+                if (token.IsCancellationRequested) break; // Проверка отмены после паузы
+
+                AddLogMessage($"{(processedFileIdsInThisSession.IsEmpty ? "Первичная" : "Повторная")} проверка файлов за период с {dtB:dd.MM.yyyy} по {dtE:dd.MM.yyyy HH:mm:ss}...");
+                StatusMessage = "Получение списка файлов...";
+
                 DataTable dtTab = null;
+                int currentTotalFiles = 0;
+
+                // --- Получение списка файлов ---
                 try
                 {
-                    using (var conBase = new SqlConnection(targetDbConnectionString))
+                    using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
                     {
-                        AddLogMessage("Получение списка файлов...");
                         await conBase.OpenAsync(token);
-                        // Вызов вспомогательного метода для получения данных
-                        dtTab = await FetchFileListAsync(conBase, BeginDate, EndDate, themeId, srcID, SelectedFilterId, flProv, token);
-                        // Устанавливаем TotalFiles сразу после получения данных
-                        TotalFiles = dtTab?.Rows.Count ?? 0;
-                        AddLogMessage($"Получено {TotalFiles} файлов для обработки.");
+                        dtTab = await FetchFileListAsync(conBase, dtB, dtE, themeId, srcID, filterId, flProv, token);
+                        currentTotalFiles = dtTab?.Rows.Count ?? 0;
 
-                        // Подсчет статистики по датам
-                        if (dtTab != null && TotalFiles > 0)
-                        {
-                            try
-                            {
-                                var counts = dtTab.AsEnumerable()
-                                    .Where(row => row["publishDate"] != DBNull.Value) // Добавлена проверка на DBNull
-                                    .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date) // Группируем по дате (без времени)
-                                    .Select(g => new DailyFileCount { Date = g.Key, Count = g.Count() })
-                                    .OrderBy(dc => dc.Date); // Сортируем по дате
-
-                                // Обновляем коллекцию в UI потоке
-                                Application.Current.Dispatcher.Invoke(() =>
-                                {
-                                    FileCountsPerDate.Clear(); // На всякий случай очищаем еще раз внутри Dispatcher
-                                    foreach (var item in counts)
-                                    {
-                                        FileCountsPerDate.Add(item);
-                                    }
-                                });
-                                AddLogMessage($"Статистика по датам рассчитана ({FileCountsPerDate.Count} дат).");
-                            }
-                            catch (Exception statEx)
-                            {
-                                AddLogMessage($"Ошибка при подсчете статистики по датам: {statEx.Message}");
-                            }
-                        }
-                        else
-                        {
-                             // Если файлов нет, убедимся, что коллекция пуста
-                            Application.Current.Dispatcher.Invoke(() => FileCountsPerDate.Clear());
-                        }
-
-                        // Получаем базовый путь, если есть файлы и srcID=0 (для других srcID путь формируется иначе)
-                        if (TotalFiles > 0 && srcID == 0)
-                        {
-                            try
-                            {
-                                string computerName = dtTab.Rows[0]["computerName"]?.ToString();
-                                string directoryName = dtTab.Rows[0]["directoryName"]?.ToString();
-                                if (!string.IsNullOrEmpty(computerName) && !string.IsNullOrEmpty(directoryName))
-                                {
-                                    basePath = $"\\\\{computerName}\\{directoryName}"; // Используем @ для буквальной строки или двойные слеши
-                                    AddLogMessage($"Базовый путь для сохранения: {basePath}");
-                                }
-                                else { AddLogMessage("Не удалось определить базовый путь (computerName/directoryName пусты)."); }
-                            }
-                            catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
+                        // Инициализация TotalFiles при первой проверке
+                        if (TotalFiles == 0 && currentTotalFiles > 0) {
+                             TotalFiles = currentTotalFiles; // Показываем общее количество, найденное на данный момент
+                             AddLogMessage($"Обнаружено {TotalFiles} файлов для обработки за период.");
+                             // Определение базового пути (делаем один раз, если возможно)
+                             if (basePath == null && srcID == 0 && dtTab.Rows.Count > 0)
+                             {
+                                 try
+                                 {
+                                     string computerName = dtTab.Rows[0]["computerName"]?.ToString();
+                                     string directoryName = dtTab.Rows[0]["directoryName"]?.ToString();
+                                     if (!string.IsNullOrEmpty(computerName) && !string.IsNullOrEmpty(directoryName))
+                                     {
+                                         basePath = $@"""\\{computerName}\{directoryName}"; // Использовать verbatim string @
+                                         AddLogMessage($"Базовый путь для сохранения: {basePath}");
+                                     } else { AddLogMessage("Не удалось определить базовый путь (computerName/directoryName пусты)."); }
+                                 } catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
+                             }
+                        } else if (currentTotalFiles > TotalFiles) {
+                            AddLogMessage($"Обнаружено {currentTotalFiles - TotalFiles} новых файлов. Общее количество теперь: {currentTotalFiles}");
+                            TotalFiles = currentTotalFiles; // Обновляем общее количество
                         }
                     }
+                }
+                catch (OperationCanceledException) { throw; } // Переброс отмены
+                catch (Exception ex)
+                {
+                    AddLogMessage($"Критическая ошибка при получении списка файлов: {ex.Message}. Проверка будет повторена через {checkInterval.TotalMinutes} минут.", "Error");
+                    StatusMessage = "Ошибка получения списка файлов.";
+                    // Не выходим из цикла, ждем следующей попытки
+                    continue; // Переходим к следующей итерации внешнего цикла (после паузы)
+                }
 
-                    if (dtTab == null || TotalFiles == 0 || token.IsCancellationRequested)
-                    { success = true; break; }
+                if (dtTab == null || dtTab.Rows.Count == 0)
+                {
+                    AddLogMessage("Не найдено файлов для обработки в указанном диапазоне или произошла ошибка при получении списка.");
+                    // Если файлов нет, просто ждем следующей проверки
+                    continue; // Переходим к следующей итерации внешнего цикла
+                }
 
-                    AddLogMessage($"Запуск параллельной обработки ({CurrentSettings.MaxParallelDownloads} потоков)...");
-                    List<Task> processingTasks = dtTab.AsEnumerable().Select(async row =>
+                // --- Фильтрация уже обработанных файлов ---
+                var filesToProcess = dtTab.AsEnumerable()
+                                        .Where(row => !processedFileIdsInThisSession.ContainsKey(Convert.ToInt32(row["documentMetaID"])))
+                                        .ToList(); // Создаем список строк для обработки в этой итерации
+
+                if (!filesToProcess.Any())
+                {
+                    AddLogMessage("Новых файлов для обработки не найдено в этой проверке.");
+                    continue; // Переходим к следующей итерации внешнего цикла
+                }
+
+                AddLogMessage($"Найдено {filesToProcess.Count} новых файлов для обработки в этой проверке.");
+                StatusMessage = $"Обработка {filesToProcess.Count} новых файлов...";
+
+                // --- Обработка новых файлов ---
+                var tasks = new List<Task>();
+                var progressReporter = new Progress<double>(progress => DownloadProgress = progress);
+
+                foreach (DataRow row in filesToProcess)
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    await semaphore.WaitAsync(token); // Ожидаем свободный слот
+
+                    tasks.Add(Task.Run(async () =>
                     {
-                        await semaphore.WaitAsync(token);
+                        int documentMetaId = Convert.ToInt32(row["documentMetaID"]);
                         try
                         {
-                            token.ThrowIfCancellationRequested();
-                            string currentFileNameLocal = row["fileName"].ToString();
-                            AddLogMessage($"Начало обработки: {currentFileNameLocal}");
+                            if (token.IsCancellationRequested) return;
+
+                            // Обрабатываем файл
                             await ProcessFileAsync(row, targetDbConnectionString, iacConnectionString, databaseName, srcID, flProv, themeId, token, progressReporter);
-                            long currentCount = Interlocked.Increment(ref processedFilesCounter);
-                            Application.Current.Dispatcher.Invoke(() => ProcessedFiles = (int)currentCount); // Обновляем UI потокобезопасно
 
-                            // --- Обновление статистики по датам ---
-                            try
-                            {
-                                if (row["publishDate"] != DBNull.Value)
+                            // Отмечаем как успешно обработанный в этом сеансе
+                            processedFileIdsInThisSession.TryAdd(documentMetaId, true);
+
+                            // Обновляем счетчик только после успешной обработки
+                            Interlocked.Increment(ref processedFilesCounter);
+                            Application.Current.Dispatcher.Invoke(() => {
+                                ProcessedFiles = (int)processedFilesCounter; // Обновляем UI
+                                // Добавляем/обновляем статистику по датам
+                                DateTime publishDate = DateTime.Parse(row["publishDate"].ToString()).Date;
+                                var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == publishDate);
+                                if (dailyStat == null)
                                 {
-                                    var fileDate = DateTime.Parse(row["publishDate"].ToString()).Date;
-                                    var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == fileDate);
-                                    if (dailyStat != null)
-                                    {
-                                        Application.Current.Dispatcher.Invoke(() => dailyStat.ProcessedCount++);
-                                    }
+                                    dailyStat = new DailyFileCount { Date = publishDate, ProcessedCount = 1 };
+                                    // Попробуем получить общее количество на эту дату из dtTab (если нужно)
+                                    // dailyStat.Count = dtTab.AsEnumerable().Count(r => DateTime.Parse(r["publishDate"].ToString()).Date == publishDate);
+                                    FileCountsPerDate.Add(dailyStat);
                                 }
-                            }
-                            catch(Exception statUpdateEx)
-                            {
-                                // Логируем ошибку обновления статистики, но не прерываем процесс
-                                AddLogMessage($"Ошибка при обновлении статистики для файла {currentFileNameLocal}: {statUpdateEx.Message}", "Warning");
-                            }
-                            // --- Конец обновления статистики по датам ---
+                                else
+                                {
+                                    dailyStat.ProcessedCount++;
+                                }
+                            });
 
-                            AddLogMessage($"Завершено: {currentFileNameLocal} ({currentCount}/{TotalFiles})");
+
                         }
-                        catch (OperationCanceledException) { AddLogMessage($"Отменена обработка для файла: {row["fileName"]}"); }
-                        catch (Exception fileEx)
+                        catch (OperationCanceledException)
                         {
-                            AddLogMessage($"ОШИБКА при обработке файла {row["fileName"]}: {fileEx.Message}");
-                            if (!IgnoreDownloadErrors) throw;
-                            else { Interlocked.Increment(ref processedFilesCounter); Application.Current.Dispatcher.Invoke(() => ProcessedFiles = (int)processedFilesCounter); }
+                             AddLogMessage($"Обработка файла (ID: {documentMetaId}) отменена.", "Warning");
+                             // Не добавляем в processedFileIdsInThisSession при отмене
                         }
-                        finally { semaphore.Release(); }
-                    }).ToList();
+                        catch (Exception ex)
+                        {
+                            string originalFileName = row.Table.Columns.Contains("fileName") ? row["fileName"].ToString() : $"ID: {documentMetaId}";
+                            AddLogMessage($"Ошибка при обработке файла '{originalFileName}': {ex.Message}", "Error");
+                            if (!IgnoreDownloadErrors)
+                            {
+                                // Если не игнорируем ошибки, можно решить прервать ли весь процесс
+                                // throw; // Переброс ошибки прервет Task.WhenAll
+                                AddLogMessage($"Обработка файла '{originalFileName}' пропущена из-за ошибки.", "Warning");
+                            }
+                            else
+                            {
+                                AddLogMessage($"Ошибка обработки файла '{originalFileName}' проигнорирована согласно настройкам.", "Warning");
+                                // Можно добавить ID в processedFileIdsInThisSession, чтобы не пытаться обработать его снова
+                                // processedFileIdsInThisSession.TryAdd(documentMetaId, false); // false - признак ошибки? или просто не добавлять? Пока не добавляем.
+                            }
+                        }
+                        finally
+                        {
+                            semaphore.Release(); // Освобождаем слот
+                        }
+                    }, token));
+                }
 
-                    await Task.WhenAll(processingTasks);
-                    if (!token.IsCancellationRequested) { AddLogMessage("Параллельная обработка завершена."); success = true; }
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (AggregateException aggEx)
+                // Ожидаем завершения всех задач этой пачки
+                try
                 {
-                    success = false;
-                    AddLogMessage($"ОШИБКА во время параллельной обработки:");
-                    foreach (var innerEx in aggEx.Flatten().InnerExceptions)
-                    { if (innerEx is OperationCanceledException) continue; AddLogMessage($"- {innerEx.Message}"); }
-                    if (!IgnoreDownloadErrors) { retryCount = maxRetries; break; } // Прерываем если есть ошибки и не игнорируем
-                    else { AddLogMessage("Ошибки файлов проигнорированы."); success = true; break; } // Считаем завершенным с ошибками
+                    await Task.WhenAll(tasks);
                 }
-                catch (Exception ex) // Ошибки подключения или получения списка
+                catch (OperationCanceledException)
                 {
-                    retryCount++;
-                    AddLogMessage($"ОШИБКА подключения/получения списка ({retryCount}/{maxRetries}): {ex.Message}");
-                    if (retryCount >= maxRetries) { AddLogMessage("Превышено количество попыток. Загрузка остановлена."); StatusMessage = "Ошибка подключения/списка."; }
-                    else { AddLogMessage($"Повторная попытка через 5 секунд..."); await Task.Delay(5000, token); }
+                     AddLogMessage("Операция отменена пользователем во время обработки файлов.", "Warning");
+                     throw; // Перебрасываем для выхода из внешнего цикла
                 }
-            } // конец while
+                // Другие исключения (если ProcessFileAsync их перебрасывает и IgnoreDownloadErrors = false) будут обработаны внешним catch
+
+                AddLogMessage("Обработка текущей пачки новых файлов завершена.");
+
+            } // --- Конец основного цикла мониторинга ---
+
+            // Формируем итоговый статус после завершения цикла
+            if (token.IsCancellationRequested)
+            {
+                finalStatus = "Загрузка отменена пользователем.";
+            }
+            else if (DateTime.Now > dtE)
+            {
+                finalStatus = $"Мониторинг завершен. Достигнута конечная дата: {dtE:dd.MM.yyyy HH:mm:ss}.";
+                AddLogMessage(finalStatus);
+            } else {
+                // Сюда не должны попасть при нормальном завершении цикла while, но на всякий случай
+                finalStatus = "Загрузка завершена.";
+            }
+             AddLogMessage($"Всего обработано файлов в этом сеансе: {processedFilesCounter}");
+
         }
         catch (OperationCanceledException)
-        { success = false; StatusMessage = "Операция отменена пользователем."; AddLogMessage("Операция отменена."); }
-        catch (Exception ex) // Другие глобальные ошибки
-        { success = false; StatusMessage = "Критическая ошибка."; AddLogMessage($"КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}"); }
+        {
+            finalStatus = "Загрузка отменена.";
+            AddLogMessage(finalStatus, "Warning");
+        }
+        catch (Exception ex)
+        {
+            finalStatus = $"Ошибка во время загрузки: {ex.Message}";
+            AddLogMessage($"Критическая ошибка: {ex.ToString()}", "Error"); // Логируем полный стектрейс
+            // Показываем ошибку пользователю
+            // MessageBox.Show($"Произошла критическая ошибка во время загрузки:\n\n{ex.Message}\n\nПодробности смотрите в логах.", 
+            //                 "Ошибка загрузки", 
+            //                 MessageBoxButton.OK, 
+            //                 MessageBoxImage.Error);
+        }
         finally
         {
+            // --- Завершение и очистка ---
             IsDownloading = false;
-            string finalStatus = "";
-            if (token.IsCancellationRequested) { finalStatus = "Операция отменена пользователем."; }
-            else if (StatusMessage == "Критическая ошибка." || StatusMessage == "Ошибка подключения/списка.") { finalStatus = StatusMessage; } // Оставляем сообщение об ошибке
-            else { finalStatus = success ? "Загрузка завершена." : "Загрузка завершена с ошибками."; }
-
-            // Добавляем информацию о пути, если он был определен и что-то обработано
             if (processedFilesCounter > 0 && !string.IsNullOrEmpty(basePath))
             {
-                finalStatus += $" Файлы сохранены в: {basePath}\\...";
-                AddLogMessage($"Успешно обработанные файлы сохранены в подпапки директории: {basePath}"); // Добавляем в лог
+                finalStatus += $" Файлы сохранены в: {basePath}..."; // Убрать одинарный обратный слеш
+                AddLogMessage($"Успешно обработанные файлы сохранены в подпапки директории: {basePath}");
             }
             else if (processedFilesCounter > 0 && srcID != 0)
             {
-                 // Для других srcID (FTP, Локальный) путь может быть другим, просто сообщим о завершении
                  AddLogMessage($"Обработка файлов для источника ID={srcID} завершена.");
             }
 
-            StatusMessage = finalStatus; // Устанавливаем итоговый статус
-            CurrentFileName = "";
-            _cancellationTokenSource?.Dispose(); _cancellationTokenSource = null;
+            StatusMessage = finalStatus;
+            CurrentFileName = ""; // Очищаем имя текущего файла
+            DownloadProgress = 0; // Сбрасываем прогресс бар
+            DownloadSpeed = ""; // Очищаем скорость
+            EstimatedTimeRemaining = ""; // Очищаем время
+
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
             (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
-            (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged(); // Разблокируем настройки
 
-            // В блоке finally обновляем статус загрузки
-            UpdateFlag = false;
+            // В блоке finally обновляем статус загрузки - UpdateFlag не используется в этой логике, убираем
+            // UpdateFlag = false;
         }
     }
 
@@ -1884,6 +1923,83 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
     // --- Конец новых методов для UI Тем ---
+
+    // --- Метод для команды открытия папки из лога ---
+    private bool CanOpenLogDirectory(LogMessage logMessage)
+    {
+        // Простая проверка, есть ли в сообщении что-то похожее на путь
+        return logMessage != null && (logMessage.Message.Contains("\\") || Regex.IsMatch(logMessage.Message, @"[a-zA-Z]:\\"));
+    }
+
+    private void OpenLogDirectory(LogMessage logMessage)
+    {
+        if (logMessage == null) 
+        {
+            AddLogMessage("OpenLogDirectory: logMessage is null.", "Warning");
+            return;
+        }
+
+        // Исправляем экранирование кавычек
+        AddLogMessage($"OpenLogDirectory: Пытаемся извлечь путь из: \"{logMessage.Message}\"", "Info");
+
+        // Улучшенное регулярное выражение: ищет пути в кавычках или без, локальные и UNC
+        var match = Regex.Match(logMessage.Message, @"(?<path>(?:""|')?(?:[a-zA-Z]:\\(?:[^'""\r\n]*)|\\\\(?:[^'""\r\n]*))(?:""|')?)");
+
+        if (match.Success)
+        {
+            // Исправляем Trim: '\'' для апострофа
+            string potentialPath = match.Groups["path"].Value.Trim('"', '\'').TrimEnd('.', ',', ':', ';', ')', ' ');
+            // Исправляем экранирование кавычек
+            AddLogMessage($"OpenLogDirectory: Regex нашел совпадение: \"{potentialPath}\"", "Info");
+
+            string directoryPath = null;
+
+            try
+            {
+                // Проверяем, является ли сам путь существующей директорией
+                if (Directory.Exists(potentialPath))
+                {
+                    directoryPath = potentialPath;
+                    AddLogMessage($"OpenLogDirectory: Найденный путь является существующей директорией: {directoryPath}", "Info");
+                }
+                // Если это не директория, проверяем, существует ли как файл
+                else if (File.Exists(potentialPath))
+                {
+                    directoryPath = Path.GetDirectoryName(potentialPath);
+                    AddLogMessage($"OpenLogDirectory: Найденный путь является файлом. Директория: {directoryPath}", "Info");
+                }
+                else
+                {
+                    // Исправляем экранирование кавычек
+                    AddLogMessage($"OpenLogDirectory: Путь \"{potentialPath}\" не существует как файл или директория.", "Warning");
+                }
+
+                // Пытаемся открыть, если удалось определить директорию и она существует
+                if (!string.IsNullOrEmpty(directoryPath) && Directory.Exists(directoryPath))
+                {
+                    // Исправляем экранирование кавычек
+                    AddLogMessage($"OpenLogDirectory: Запуск explorer.exe для: \"{directoryPath}\"", "Info");
+                    Process.Start("explorer.exe", directoryPath);
+                }
+                else if (!string.IsNullOrEmpty(directoryPath))
+                {
+                     // Исправляем экранирование кавычек
+                     AddLogMessage($"OpenLogDirectory: Определенная директория \"{directoryPath}\" не существует.", "Warning");
+                }
+                // else - сообщение о том, что путь не существует, уже было выведено выше
+            }
+            catch (Exception ex)
+            {
+                // Исправляем экранирование кавычек
+                AddLogMessage($"OpenLogDirectory: Ошибка при обработке пути \"{potentialPath}\" или открытии директории: {ex.ToString()}", "Error");
+            }
+        }
+        else
+        {
+             AddLogMessage("OpenLogDirectory: Регулярное выражение не нашло совпадений пути в сообщении.", "Warning");
+        }
+    }
+    // --- Конец метода команды ---
 
     // Добавляем определение для AvailableThemes
     private ObservableCollection<ThemeInfo> _availableThemes = new ObservableCollection<ThemeInfo>();

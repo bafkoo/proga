@@ -1,0 +1,309 @@
+﻿2025-04-09 14:16:27.673 | Приложение запускается...
+2025-04-09 14:16:27.718 | Конфигурация загружена.
+2025-04-09 14:16:27.981 | Конструктор DownloaderViewModel: Начало
+2025-04-09 14:16:27.995 | Retrieved BaseConnectionString: 'Data Source=85.173.112.233;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-09 14:16:27.996 | Retrieved IacConnectionString: 'Data Source=195.93.180.108;Initial Catalog=zakupkiWeb;User ID=sa;Password=fyfkbnbrf-2011*;TrustServerCertificate=True'
+2025-04-09 14:16:27.996 | Retrieved ServerOfficeConnectionString: 'Data Source=85.173.112.233;Initial Catalog=IAC;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-09 14:16:28.010 | Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен
+2025-04-09 14:16:28.131 | Конструктор DownloaderViewModel: LoadAvailableDatabases завершен
+2025-04-09 14:16:28.303 | Конструктор DownloaderViewModel: LoadAvailableThemes завершен
+2025-04-09 14:16:28.308 | Обнаружена текущая UI тема: Light.Blue
+2025-04-09 14:16:28.308 | Конструктор DownloaderViewModel: LoadUiThemesAndAccents завершен
+2025-04-09 14:16:28.309 | Конструктор DownloaderViewModel: Команды инициализированы
+2025-04-09 14:16:28.309 | Конструктор DownloaderViewModel: Завершен
+2025-04-09 14:16:28.682 | MainWindow создано и показано.
+2025-04-09 14:16:52.265 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=1831EFE8FC1A4BE8A101FCC81F7A3363 -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841629.docx
+2025-04-09 14:16:52.265 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:52.266 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=AAEE4D12F71A46919492EE20CF3A5ADD -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841514.docx
+2025-04-09 14:16:52.269 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:52.270 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:52.270 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:52.270 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:52.270 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:52.270 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:52.271 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:52.271 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:52.271 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:52.271 |     Connection: keep-alive
+2025-04-09 14:16:52.271 |     Connection: keep-alive
+2025-04-09 14:16:52.272 |     Cache-Control: no-cache
+2025-04-09 14:16:52.272 |     Cache-Control: no-cache
+2025-04-09 14:16:52.272 |     Pragma: no-cache
+2025-04-09 14:16:52.272 |     Pragma: no-cache
+2025-04-09 14:16:52.272 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:52.272 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:52.273 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:52.273 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:52.273 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:52.273 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:52.273 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:52.273 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:52.274 |     Sec-Fetch-Site: none
+2025-04-09 14:16:52.274 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:52.274 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:52.274 |     Sec-Fetch-Site: none
+2025-04-09 14:16:52.274 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:52.274 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:52.275 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:52.275 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:52.275 |     DNT: 1
+2025-04-09 14:16:52.275 |     DNT: 1
+2025-04-09 14:16:52.721 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:52.721 |     Server: nginx
+2025-04-09 14:16:52.722 |     Date: Wed, 09 Apr 2025 11:16:52 GMT
+2025-04-09 14:16:52.722 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:52.723 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:52.723 |     X-Cache-Status: MISS
+2025-04-09 14:16:52.723 |     X-Varnish: 710445818
+2025-04-09 14:16:52.723 |     Age: 0
+2025-04-09 14:16:52.724 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:52.724 |     Accept-Ranges: bytes
+2025-04-09 14:16:52.724 |     Connection: keep-alive
+2025-04-09 14:16:52.724 |     Content-Type: application/download
+2025-04-09 14:16:52.725 |     Content-Length: 91622
+2025-04-09 14:16:52.725 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â 97   Ð»Ð¸Ñ. ÐÐ²ÐµÐ·Ð´Ð½ÑÐ¹.docx"
+2025-04-09 14:16:52.725 |     Expires: Fri, 09 May 2025 11:16:52 GMT
+2025-04-09 14:16:52.726 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=AAEE4D12F71A46919492EE20CF3A5ADD
+2025-04-09 14:16:52.726 | WebGetAsync: ContentLength=91622 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=AAEE4D12F71A46919492EE20CF3A5ADD
+2025-04-09 14:16:52.811 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:52.812 |     Server: nginx
+2025-04-09 14:16:52.812 |     Date: Wed, 09 Apr 2025 11:16:52 GMT
+2025-04-09 14:16:52.812 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:52.812 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:52.813 |     X-Cache-Status: MISS
+2025-04-09 14:16:52.813 |     X-Varnish: 692852866
+2025-04-09 14:16:52.813 |     Age: 0
+2025-04-09 14:16:52.813 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:52.813 |     Accept-Ranges: bytes
+2025-04-09 14:16:52.813 |     Connection: keep-alive
+2025-04-09 14:16:52.813 |     Content-Type: application/download
+2025-04-09 14:16:52.814 |     Content-Length: 92322
+2025-04-09 14:16:52.814 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â   98   ÐÐ Ð¨ÐµÐµÐ½ÐºÐ¾Ð²Ð° Ð¢.Ð..docx"
+2025-04-09 14:16:52.814 |     Expires: Fri, 09 May 2025 11:16:52 GMT
+2025-04-09 14:16:52.814 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=1831EFE8FC1A4BE8A101FCC81F7A3363
+2025-04-09 14:16:52.814 | WebGetAsync: ContentLength=92322 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=1831EFE8FC1A4BE8A101FCC81F7A3363
+2025-04-09 14:16:52.875 | WebGetAsync: Файл сохранен, ActualSize=91622 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=AAEE4D12F71A46919492EE20CF3A5ADD
+2025-04-09 14:16:52.876 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=AAEE4D12F71A46919492EE20CF3A5ADD
+2025-04-09 14:16:53.039 | WebGetAsync: Файл сохранен, ActualSize=92322 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=1831EFE8FC1A4BE8A101FCC81F7A3363
+2025-04-09 14:16:53.039 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=1831EFE8FC1A4BE8A101FCC81F7A3363
+2025-04-09 14:16:53.189 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=CD2C99B4F6704F6A814AC217C21140D1 -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841734.docx
+2025-04-09 14:16:53.189 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:53.189 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:53.189 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:53.189 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:53.190 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:53.190 |     Connection: keep-alive
+2025-04-09 14:16:53.190 |     Cache-Control: no-cache
+2025-04-09 14:16:53.190 |     Pragma: no-cache
+2025-04-09 14:16:53.190 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:53.190 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:53.190 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:53.191 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:53.191 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:53.191 |     Sec-Fetch-Site: none
+2025-04-09 14:16:53.191 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:53.191 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:53.191 |     DNT: 1
+2025-04-09 14:16:53.248 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F857E1F1222F45399DDBD73AA7EAE911 -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841837.docx
+2025-04-09 14:16:53.248 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:53.248 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:53.249 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:53.249 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:53.249 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:53.249 |     Connection: keep-alive
+2025-04-09 14:16:53.249 |     Cache-Control: no-cache
+2025-04-09 14:16:53.249 |     Pragma: no-cache
+2025-04-09 14:16:53.250 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:53.250 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:53.250 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:53.250 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:53.250 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:53.250 |     Sec-Fetch-Site: none
+2025-04-09 14:16:53.250 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:53.251 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:53.251 |     DNT: 1
+2025-04-09 14:16:53.399 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:53.400 |     Server: nginx
+2025-04-09 14:16:53.400 |     Date: Wed, 09 Apr 2025 11:16:53 GMT
+2025-04-09 14:16:53.400 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:53.400 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:53.400 |     X-Cache-Status: MISS
+2025-04-09 14:16:53.401 |     X-Varnish: 703208991
+2025-04-09 14:16:53.401 |     Age: 0
+2025-04-09 14:16:53.401 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:53.401 |     Accept-Ranges: bytes
+2025-04-09 14:16:53.401 |     Connection: keep-alive
+2025-04-09 14:16:53.401 |     Content-Type: application/download
+2025-04-09 14:16:53.401 |     Content-Length: 91999
+2025-04-09 14:16:53.402 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â  100  ÐÐ Ð¥Ð²Ð¾ÑÑÐ¾Ð²Ð° Ð¢.Ð..docx"
+2025-04-09 14:16:53.402 |     Expires: Fri, 09 May 2025 11:16:53 GMT
+2025-04-09 14:16:53.402 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F857E1F1222F45399DDBD73AA7EAE911
+2025-04-09 14:16:53.402 | WebGetAsync: ContentLength=91999 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F857E1F1222F45399DDBD73AA7EAE911
+2025-04-09 14:16:53.468 | WebGetAsync: Файл сохранен, ActualSize=91999 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F857E1F1222F45399DDBD73AA7EAE911
+2025-04-09 14:16:53.468 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F857E1F1222F45399DDBD73AA7EAE911
+2025-04-09 14:16:53.472 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:53.472 |     Server: nginx
+2025-04-09 14:16:53.472 |     Date: Wed, 09 Apr 2025 11:16:53 GMT
+2025-04-09 14:16:53.473 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:53.473 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:53.473 |     X-Cache-Status: MISS
+2025-04-09 14:16:53.473 |     X-Varnish: 712082648
+2025-04-09 14:16:53.473 |     Age: 0
+2025-04-09 14:16:53.473 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:53.474 |     Accept-Ranges: bytes
+2025-04-09 14:16:53.474 |     Connection: keep-alive
+2025-04-09 14:16:53.474 |     Content-Type: application/download
+2025-04-09 14:16:53.474 |     Content-Length: 92515
+2025-04-09 14:16:53.474 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â 99   ÐÐ ÐÐ°ÑÑÑÐ¸Ð½ Ð¡.Ð¡..docx"
+2025-04-09 14:16:53.474 |     Expires: Fri, 09 May 2025 11:16:53 GMT
+2025-04-09 14:16:53.475 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=CD2C99B4F6704F6A814AC217C21140D1
+2025-04-09 14:16:53.475 | WebGetAsync: ContentLength=92515 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=CD2C99B4F6704F6A814AC217C21140D1
+2025-04-09 14:16:53.584 | WebGetAsync: Файл сохранен, ActualSize=92515 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=CD2C99B4F6704F6A814AC217C21140D1
+2025-04-09 14:16:53.584 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=CD2C99B4F6704F6A814AC217C21140D1
+2025-04-09 14:16:53.665 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=10D9999C30BA48F4B8859AC36E4C0FD2 -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841940.docx
+2025-04-09 14:16:53.665 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:53.666 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:53.666 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:53.666 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:53.666 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:53.666 |     Connection: keep-alive
+2025-04-09 14:16:53.666 |     Cache-Control: no-cache
+2025-04-09 14:16:53.667 |     Pragma: no-cache
+2025-04-09 14:16:53.667 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:53.667 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:53.667 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:53.667 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:53.667 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:53.668 |     Sec-Fetch-Site: none
+2025-04-09 14:16:53.668 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:53.668 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:53.668 |     DNT: 1
+2025-04-09 14:16:53.787 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F8E65900B214455DA21A8820ECADD2CC -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166841996.docx
+2025-04-09 14:16:53.787 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:53.788 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:53.788 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:53.788 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:53.788 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:53.788 |     Connection: keep-alive
+2025-04-09 14:16:53.789 |     Cache-Control: no-cache
+2025-04-09 14:16:53.789 |     Pragma: no-cache
+2025-04-09 14:16:53.789 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:53.789 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:53.789 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:53.789 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:53.790 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:53.790 |     Sec-Fetch-Site: none
+2025-04-09 14:16:53.790 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:53.790 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:53.790 |     DNT: 1
+2025-04-09 14:16:53.821 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:53.822 |     Server: nginx
+2025-04-09 14:16:53.822 |     Date: Wed, 09 Apr 2025 11:16:53 GMT
+2025-04-09 14:16:53.822 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:53.822 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:53.822 |     X-Cache-Status: MISS
+2025-04-09 14:16:53.822 |     X-Varnish: 711724917
+2025-04-09 14:16:53.823 |     Age: 0
+2025-04-09 14:16:53.823 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:53.823 |     Accept-Ranges: bytes
+2025-04-09 14:16:53.823 |     Connection: keep-alive
+2025-04-09 14:16:53.823 |     Content-Type: application/download
+2025-04-09 14:16:53.823 |     Content-Length: 91439
+2025-04-09 14:16:53.823 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â  101   ÐÐ¦Ð.docx"
+2025-04-09 14:16:53.824 |     Expires: Fri, 09 May 2025 11:16:53 GMT
+2025-04-09 14:16:53.824 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=10D9999C30BA48F4B8859AC36E4C0FD2
+2025-04-09 14:16:53.824 | WebGetAsync: ContentLength=91439 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=10D9999C30BA48F4B8859AC36E4C0FD2
+2025-04-09 14:16:53.952 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:53.952 |     Server: nginx
+2025-04-09 14:16:53.952 |     Date: Wed, 09 Apr 2025 11:16:54 GMT
+2025-04-09 14:16:53.952 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:53.952 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:53.952 |     X-Cache-Status: MISS
+2025-04-09 14:16:53.953 |     X-Varnish: 643620478
+2025-04-09 14:16:53.953 |     Age: 0
+2025-04-09 14:16:53.953 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:53.953 |     Accept-Ranges: bytes
+2025-04-09 14:16:53.953 |     Connection: keep-alive
+2025-04-09 14:16:53.953 |     Content-Type: application/download
+2025-04-09 14:16:53.954 |     Content-Length: 92398
+2025-04-09 14:16:53.954 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â  102   ÑÑ â 51.docx"
+2025-04-09 14:16:53.954 |     Expires: Fri, 09 May 2025 11:16:54 GMT
+2025-04-09 14:16:53.954 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F8E65900B214455DA21A8820ECADD2CC
+2025-04-09 14:16:53.954 | WebGetAsync: ContentLength=92398 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F8E65900B214455DA21A8820ECADD2CC
+2025-04-09 14:16:54.041 | WebGetAsync: Файл сохранен, ActualSize=92398 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F8E65900B214455DA21A8820ECADD2CC
+2025-04-09 14:16:54.041 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=F8E65900B214455DA21A8820ECADD2CC
+2025-04-09 14:16:54.194 | WebGetAsync: Файл сохранен, ActualSize=91439 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=10D9999C30BA48F4B8859AC36E4C0FD2
+2025-04-09 14:16:54.194 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=10D9999C30BA48F4B8859AC36E4C0FD2
+2025-04-09 14:16:54.234 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=B305221322464D8184B800C95A36F0BA -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166842179.docx
+2025-04-09 14:16:54.235 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:54.235 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:54.235 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:54.235 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:54.235 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:54.235 |     Connection: keep-alive
+2025-04-09 14:16:54.236 |     Cache-Control: no-cache
+2025-04-09 14:16:54.236 |     Pragma: no-cache
+2025-04-09 14:16:54.236 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:54.236 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:54.236 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:54.236 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:54.236 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:54.237 |     Sec-Fetch-Site: none
+2025-04-09 14:16:54.237 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:54.237 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:54.237 |     DNT: 1
+2025-04-09 14:16:54.351 | WebGetAsync: Начало загрузки http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=3A995CD35747416DA4614B575BA7F1BC -> \\ServerOffice3\documentMetaContract_18\3\2025\4\2\166842321.docx
+2025-04-09 14:16:54.351 | WebGetAsync: Заголовки запроса:
+2025-04-09 14:16:54.352 |     User-Agent: Mozilla/5.0, (Windows NT 10.0; Win64; x64), AppleWebKit/537.36, (KHTML, like Gecko), Chrome/122.0.0.0, Safari/537.36
+2025-04-09 14:16:54.352 |     Accept: text/html, application/xhtml+xml, application/xml; q=0.9, image/avif, image/webp, image/apng, */*; q=0.8, application/signed-exchange; v=b3; q=0.7
+2025-04-09 14:16:54.352 |     Accept-Language: ru-RU, ru; q=0.9, en-US; q=0.8, en; q=0.7
+2025-04-09 14:16:54.352 |     Accept-Encoding: gzip, deflate, br
+2025-04-09 14:16:54.352 |     Connection: keep-alive
+2025-04-09 14:16:54.352 |     Cache-Control: no-cache
+2025-04-09 14:16:54.353 |     Pragma: no-cache
+2025-04-09 14:16:54.353 |     Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"
+2025-04-09 14:16:54.353 |     Sec-Ch-Ua-Mobile: ?0
+2025-04-09 14:16:54.353 |     Sec-Ch-Ua-Platform: "Windows"
+2025-04-09 14:16:54.353 |     Sec-Fetch-Dest: document
+2025-04-09 14:16:54.354 |     Sec-Fetch-Mode: navigate
+2025-04-09 14:16:54.354 |     Sec-Fetch-Site: none
+2025-04-09 14:16:54.354 |     Sec-Fetch-User: ?1
+2025-04-09 14:16:54.354 |     Upgrade-Insecure-Requests: 1
+2025-04-09 14:16:54.354 |     DNT: 1
+2025-04-09 14:16:54.463 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:54.464 |     Server: nginx
+2025-04-09 14:16:54.464 |     Date: Wed, 09 Apr 2025 11:16:54 GMT
+2025-04-09 14:16:54.464 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:54.464 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:54.464 |     X-Cache-Status: MISS
+2025-04-09 14:16:54.465 |     X-Varnish: 688955161
+2025-04-09 14:16:54.465 |     Age: 0
+2025-04-09 14:16:54.465 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:54.465 |     Accept-Ranges: bytes
+2025-04-09 14:16:54.465 |     Connection: keep-alive
+2025-04-09 14:16:54.475 |     Content-Type: application/download
+2025-04-09 14:16:54.475 |     Content-Length: 89816
+2025-04-09 14:16:54.475 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â  103    ÐÐ½Ð¾Ð³Ð¾Ð¿ÑÐ¾ÑÐ¸Ð»ÑÐ½ÑÐ¹ Ð»Ð¸ÑÐµÐ¹.docx"
+2025-04-09 14:16:54.475 |     Expires: Fri, 09 May 2025 11:16:54 GMT
+2025-04-09 14:16:54.476 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=B305221322464D8184B800C95A36F0BA
+2025-04-09 14:16:54.476 | WebGetAsync: ContentLength=89816 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=B305221322464D8184B800C95A36F0BA
+2025-04-09 14:16:54.560 | WebGetAsync: Заголовки ответа:
+2025-04-09 14:16:54.561 |     Server: nginx
+2025-04-09 14:16:54.561 |     Date: Wed, 09 Apr 2025 11:16:54 GMT
+2025-04-09 14:16:54.561 |     X-Powered-By: Undertow/1
+2025-04-09 14:16:54.561 |     Cache-Control: max-age=2592000
+2025-04-09 14:16:54.561 |     X-Cache-Status: MISS
+2025-04-09 14:16:54.562 |     X-Varnish: 724601971
+2025-04-09 14:16:54.562 |     Age: 0
+2025-04-09 14:16:54.562 |     Via: 1.1 varnish (Varnish/6.3)
+2025-04-09 14:16:54.562 |     Accept-Ranges: bytes
+2025-04-09 14:16:54.562 |     Connection: keep-alive
+2025-04-09 14:16:54.562 |     Content-Type: application/download
+2025-04-09 14:16:54.563 |     Content-Length: 93150
+2025-04-09 14:16:54.563 |     Content-Disposition: attachment; filename="ÐÐ¾Ð½ÑÑÐ°ÐºÑ â  104    ÐÐ¾Ð»Ð¸ÑÐµÑÐ½Ð¸ÑÐµÑÐºÐ¸Ð¹ Ð»Ð¸ÑÐµÐ¹.docx"
+2025-04-09 14:16:54.563 |     Expires: Fri, 09 May 2025 11:16:54 GMT
+2025-04-09 14:16:54.563 | WebGetAsync: Получен ответ OK для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=3A995CD35747416DA4614B575BA7F1BC
+2025-04-09 14:16:54.563 | WebGetAsync: ContentLength=93150 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=3A995CD35747416DA4614B575BA7F1BC
+2025-04-09 14:16:54.728 | WebGetAsync: Файл сохранен, ActualSize=93150 для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=3A995CD35747416DA4614B575BA7F1BC
+2025-04-09 14:16:54.728 | WebGetAsync: Успешная загрузка http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=3A995CD35747416DA4614B575BA7F1BC
+2025-04-09 14:16:54.913 | WebGetAsync: Загрузка отменена для http://zakupki.gov.ru/44fz/filestore/public/1.0/download/rgk2/file.html?uid=B305221322464D8184B800C95A36F0BA

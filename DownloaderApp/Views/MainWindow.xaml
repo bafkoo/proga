@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FileDownloader.Views"
         xmlns:viewModels="clr-namespace:FileDownloader.ViewModels"
+        xmlns:models="clr-namespace:FileDownloader.Models"
         xmlns:converters="clr-namespace:FileDownloader.Converters"
         xmlns:metro="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
@@ -233,12 +234,29 @@
                                 DisplayMemberPath="DisplayName" Margin="5,0,0,0"/>
                     </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Name="LogScrollViewer">
                         <ItemsControl ItemsSource="{Binding FilteredLogMessages}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Message}" Style="{StaticResource LogMessageStyle}" 
-                                            Margin="5,2" TextWrapping="Wrap"/>
+                                <DataTemplate DataType="{x:Type models:LogMessage}">
+                                    <TextBlock Style="{StaticResource LogMessageStyle}" Margin="5,2" TextWrapping="Wrap">
+                                         <Hyperlink Command="{Binding DataContext.OpenLogDirectoryCommand, RelativeSource={RelativeSource AncestorType=metro:MetroWindow}}"
+                                                    CommandParameter="{Binding}"
+                                                    TextDecorations="{x:Null}"
+                                                    ToolTip="Нажмите, чтобы открыть содержащую папку (если путь найден в сообщении).">
+                                             <Run Text="{Binding Message}"/>
+                                              <Hyperlink.Style>
+                                                  <Style TargetType="Hyperlink">
+                                                       <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}}"/>
+                                                       <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                 <Setter Property="TextDecorations" Value="Underline"/>
+                                                                 <Setter Property="Cursor" Value="Hand"/>
+                                                            </Trigger>
+                                                       </Style.Triggers>
+                                                  </Style>
+                                             </Hyperlink.Style>
+                                        </Hyperlink>
+                                    </TextBlock>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

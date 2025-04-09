@@ -127,6 +127,8 @@ C:\Users\Krasoft2025\proga\DownloaderApp\obj\Release\net9.0-windows\refint\FileD
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Release\net9.0-windows\FileDownloader.pdb
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Release\net9.0-windows\DownloaderApp.genruntimeconfig.cache
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Release\net9.0-windows\ref\FileDownloader.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\SharpCompress.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\ZstdSharp.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\FileDownloader.dll.manifest
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Release\net9.0-windows\FileDownloader.application
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Release\net9.0-windows\FileDownloader.dll.manifest

@@ -134,31 +134,31 @@
       <dsig:DigestValue>Wv2BEL2KbRoLaIZLhhr4LuBBy0zt/sh9+G3sM7TV74A=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.deps.json" size="60926">
+  <file name="FileDownloader.deps.json" size="62450">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>srQQQp5oBkOSsKdDOdXOICryNEbQyW2ZGtYdGVRkd1I=</dsig:DigestValue>
+      <dsig:DigestValue>YZ326yHrMND6BD7SfDyHVmY86wLuCCduS5xNA/LHfAk=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.dll" size="103432">
+  <file name="FileDownloader.dll" size="107528">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>dT4xo64pxkpD5ZPinvwH7UpH3yWgLxWFelZN8sc+PJU=</dsig:DigestValue>
+      <dsig:DigestValue>+LL53GRonzC3siYqm+ctme/WN6sWGgvwz9Rx3Jcd+6k=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="FileDownloader.exe" size="148488">
+  <file name="FileDownloader.exe" size="147976">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>iCwcHoflqqPIxV3hquYtcbQa2pFUjTBOljzeWrQZInY=</dsig:DigestValue>
+      <dsig:DigestValue>KORBU1l598jZnXXJuYDRFjaSCuMbzYqWn8GGmso55Z4=</dsig:DigestValue>
     </hash>
   </file>
   <file name="FileDownloader.runtimeconfig.json" size="583">
@@ -908,6 +908,15 @@
       <dsig:DigestValue>GSqX9qLkCMNtnsig7ua7ozpRbd7fNmLAMdiOdEYp+ZE=</dsig:DigestValue>
     </hash>
   </file>
+  <file name="SharpCompress.dll" size="606720">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
+      <dsig:DigestValue>w9WItaqN2qXR1/BpxDwNLvYolkfsZJll90aaBmQbG30=</dsig:DigestValue>
+    </hash>
+  </file>
   <file name="SQLitePCLRaw.batteries_v2.dll" size="5120">
     <hash>
       <dsig:Transforms>
@@ -998,4 +1007,13 @@
       <dsig:DigestValue>OznuEt25g+EiNgr1HRz3FRfoCFq9/y2VuWdCUQUonUM=</dsig:DigestValue>
     </hash>
   </file>
-<publisherIdentity name="CN=DESKTOP-5CDKQEG\Krasoft2025" issuerKeyHash="321b6990c04197165f0d5bbe96e11df0a0d2e905" /><Signature Id="StrongNameSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>ldTbKNhrAfPFbaSk+tg5H3MNZcm8UqUu0KTycRpCQd8=</DigestValue></Reference></SignedInfo><SignatureValue>HLAdyLIxKf2k8XCO4ASCNu/xHpfd/iw0Wfd8ybHz9i4/5jO0ZOm/vptcItnUa68Op5BLCFVK5iGrPbpxNw8G61nFoe2eWdDnLTd9XzPZ+RV3V7xTxM0ru9cG9UsXHCzciarW+AT4kStmTXGHDesVSsfsYyg3AdQpq7d5ApaEfK0=</SignatureValue><KeyInfo Id="StrongNameKeyInfo"><KeyValue><RSAKeyValue><Modulus>0dugiSLTiymSQaW1jT4z/vWJ4UghUgK9jeloLNrOEH/d4SHqoLGzzzlFNzb2IDakPc6KGcHIuIJ4Aj6tNE6loSppwAIfyYyANJe671hQCiFQE6QhBNjoLgGkUoa3beXPR/4rDRoMdtCsF30owj59IQoyGsVe1nKm8FIvlxq8pAk=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><msrel:RelData xmlns:msrel="http://schemas.microsoft.com/windows/rel/2005/reldata"><r:license xmlns:r="urn:mpeg:mpeg21:2003:01-REL-R-NS" xmlns:as="http://schemas.microsoft.com/windows/pki/2005/Authenticode"><r:grant><as:ManifestInformation Hash="df41421a71f2a4d02ea552bcc9650d731f39d8faa4a46dc5f3016bd828dbd495" Description="" Url=""><as:assemblyIdentity name="FileDownloader.exe" version="1.0.0.1" publicKeyToken="a42c55da91a5cfd5" language="neutral" processorArchitecture="msil" type="win32" /></as:ManifestInformation><as:SignedBy /><as:AuthenticodePublisher><as:X509SubjectName>CN=DESKTOP-5CDKQEG\Krasoft2025</as:X509SubjectName></as:AuthenticodePublisher></r:grant><r:issuer><Signature Id="AuthenticodeSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>88bF8ouJSulqIgquzDnUL/9fCCghRh5DtooTKFAvdiU=</DigestValue></Reference></SignedInfo><SignatureValue>IFztK1EGND3l1CaI/0DQ2nkYCrD/QPBv4iYqLaYKXkgOrsxSnzsw4rle7O3NvOhsyMQxlqu4CajZaKMdwlCngdUeFuCF0rnY50T+4HULKUMz3iRZDjwl+M9blgObxKerQTcC2KiTTlOdPGgHQV9Ex2BfjSDzdqqR0tbC6Ghb8qM=</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>0dugiSLTiymSQaW1jT4z/vWJ4UghUgK9jeloLNrOEH/d4SHqoLGzzzlFNzb2IDakPc6KGcHIuIJ4Aj6tNE6loSppwAIfyYyANJe671hQCiFQE6QhBNjoLgGkUoa3beXPR/4rDRoMdtCsF30owj59IQoyGsVe1nKm8FIvlxq8pAk=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><X509Data><X509Certificate>MIICBTCCAW6gAwIBAgIQFM0LzEc0S5FCM+CD0gECDDANBgkqhkiG9w0BAQsFADBBMT8wPQYDVQQDHjYARABFAFMASwBUAE8AUAAtADUAQwBEAEsAUQBFAEcAXABLAHIAYQBzAG8AZgB0ADIAMAAyADUwHhcNMjUwNDA5MDcwOTU2WhcNMjYwNDA5MTMwOTU2WjBBMT8wPQYDVQQDHjYARABFAFMASwBUAE8AUAAtADUAQwBEAEsAUQBFAEcAXABLAHIAYQBzAG8AZgB0ADIAMAAyADUwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANHboIki04spkkGltY0+M/71ieFIIVICvY3paCzazhB/3eEh6qCxs885RTc29iA2pD3OihnByLiCeAI+rTROpaEqacACH8mMgDSXuu9YUAohUBOkIQTY6C4BpFKGt23lz0f+Kw0aDHbQrBd9KMI+fSEKMhrFXtZypvBSL5cavKQJAgMBAAEwDQYJKoZIhvcNAQELBQADgYEAQCLYWePNBtxCx1iy5Ulifkgmvd5r4wgeOMp4VMI2WA13Pw/OBoHQ/A4MIexhy0FSEc/w/9kK1+/0736xSmnAVF2AFzblMYhL5sYi+NG92c0qrCTGyB78XIEexQDrFJ4bT3EawTXMEMMc4x0QysI82uU8DQO3GD1v7FgI5qjij1k=</X509Certificate></X509Data></KeyInfo></Signature></r:issuer></r:license></msrel:RelData></KeyInfo></Signature></asmv1:assembly>
+  <file name="ZstdSharp.dll" size="392704">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
+      <dsig:DigestValue>9EWcit3IzYWIs1O/TU09zx+fMmcj3Wv190LDtv5i5tY=</dsig:DigestValue>
+    </hash>
+  </file>
+<publisherIdentity name="CN=DESKTOP-5CDKQEG\Krasoft2025" issuerKeyHash="321b6990c04197165f0d5bbe96e11df0a0d2e905" /><Signature Id="StrongNameSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>lGyUYoQuqojkq0awcyJCt6K567xozXkZkAxxjHI82pg=</DigestValue></Reference></SignedInfo><SignatureValue>nQslRTrS/AoM34xQcw6OB5txJe/Lt0EWh+uQCUjItl4bc9wG5wtjQf8Ih29Q4CVwN1y8IkOjPF+gxRh+LMaoIsd80Ca4TPC9dbU7FFMA1AFbCYZAxpuLnkZcb3YK5wlcf3dw9CqcxEK8UJQkNjgAVyqs+rWzXldhp2VWOyn7SX4=</SignatureValue><KeyInfo Id="StrongNameKeyInfo"><KeyValue><RSAKeyValue><Modulus>0dugiSLTiymSQaW1jT4z/vWJ4UghUgK9jeloLNrOEH/d4SHqoLGzzzlFNzb2IDakPc6KGcHIuIJ4Aj6tNE6loSppwAIfyYyANJe671hQCiFQE6QhBNjoLgGkUoa3beXPR/4rDRoMdtCsF30owj59IQoyGsVe1nKm8FIvlxq8pAk=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><msrel:RelData xmlns:msrel="http://schemas.microsoft.com/windows/rel/2005/reldata"><r:license xmlns:r="urn:mpeg:mpeg21:2003:01-REL-R-NS" xmlns:as="http://schemas.microsoft.com/windows/pki/2005/Authenticode"><r:grant><as:ManifestInformation Hash="98da3c728c710c901979cd68bcebb9a2b7422273b046abe488aa2e8462946c94" Description="" Url=""><as:assemblyIdentity name="FileDownloader.exe" version="1.0.0.1" publicKeyToken="a42c55da91a5cfd5" language="neutral" processorArchitecture="msil" type="win32" /></as:ManifestInformation><as:SignedBy /><as:AuthenticodePublisher><as:X509SubjectName>CN=DESKTOP-5CDKQEG\Krasoft2025</as:X509SubjectName></as:AuthenticodePublisher></r:grant><r:issuer><Signature Id="AuthenticodeSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>FZWJjjByKNSjk95TALqLmr4AA1AXCS7xZr/sDVSxoK8=</DigestValue></Reference></SignedInfo><SignatureValue>rCJzRsObRMLbCXgBcRu2eJsnuGZjfFGXd5Cnybawbe0wMgTeC0rbZaDJlgksPWxpx8PReTHEW+hMSst2cPfimk2XOd+kUDiAZI/UiMP7rXqlH7Yq8UjhZoFS7GKfJykQD1PXGUM1LyBFHYWMXl0l6WJHMCYbw8HiASuW1S9y4Nw=</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>0dugiSLTiymSQaW1jT4z/vWJ4UghUgK9jeloLNrOEH/d4SHqoLGzzzlFNzb2IDakPc6KGcHIuIJ4Aj6tNE6loSppwAIfyYyANJe671hQCiFQE6QhBNjoLgGkUoa3beXPR/4rDRoMdtCsF30owj59IQoyGsVe1nKm8FIvlxq8pAk=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><X509Data><X509Certificate>MIICBTCCAW6gAwIBAgIQFM0LzEc0S5FCM+CD0gECDDANBgkqhkiG9w0BAQsFADBBMT8wPQYDVQQDHjYARABFAFMASwBUAE8AUAAtADUAQwBEAEsAUQBFAEcAXABLAHIAYQBzAG8AZgB0ADIAMAAyADUwHhcNMjUwNDA5MDcwOTU2WhcNMjYwNDA5MTMwOTU2WjBBMT8wPQYDVQQDHjYARABFAFMASwBUAE8AUAAtADUAQwBEAEsAUQBFAEcAXABLAHIAYQBzAG8AZgB0ADIAMAAyADUwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANHboIki04spkkGltY0+M/71ieFIIVICvY3paCzazhB/3eEh6qCxs885RTc29iA2pD3OihnByLiCeAI+rTROpaEqacACH8mMgDSXuu9YUAohUBOkIQTY6C4BpFKGt23lz0f+Kw0aDHbQrBd9KMI+fSEKMhrFXtZypvBSL5cavKQJAgMBAAEwDQYJKoZIhvcNAQELBQADgYEAQCLYWePNBtxCx1iy5Ulifkgmvd5r4wgeOMp4VMI2WA13Pw/OBoHQ/A4MIexhy0FSEc/w/9kK1+/0736xSmnAVF2AFzblMYhL5sYi+NG92c0qrCTGyB78XIEexQDrFJ4bT3EawTXMEMMc4x0QysI82uU8DQO3GD1v7FgI5qjij1k=</X509Certificate></X509Data></KeyInfo></Signature></r:issuer></r:license></msrel:RelData></KeyInfo></Signature></asmv1:assembly>
