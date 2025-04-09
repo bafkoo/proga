@@ -100,6 +100,25 @@ public class DownloadResult
 // --- Состояния Circuit Breaker ---
 enum CircuitBreakerState { Closed, Open, HalfOpen }
 
+// --- Вспомогательная запись для потоковой передачи данных файла ---
+internal record FileMetadataRecord(
+    int DocumentMetaID,
+    string Url,
+    DateTime PublishDate,
+    string ComputerName,
+    string DirectoryName,
+    int DocumentMetaPathID,
+    string PathDirectory, // pthDocument
+    string FlDocument, // flDocumentOriginal
+    string Ftp, // ftp
+    string FileNameFtp, // fileNameFtp
+    string FileName, // originalFileName
+    string ExpName,
+    string DocDescription,
+    object UrlID // urlID from DB (может быть int или string)
+);
+// --------------------------------------------------------------
+
 public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 {
     // --- Circuit Breaker State ---
