@@ -38,6 +38,7 @@ using SharpCompress.Common; // <-- Добавлено
 using System.IO.Compression; // <-- Для Zip (если понадобится отдельно)
 using System.Collections.Concurrent; // Для потокобезопасной коллекции
 using System.Text.RegularExpressions;
+using System.Windows.Threading; // Для DispatcherTimer
 
 // --- Добавляем класс для хранения статистики по датам ---
 public class DailyFileCount : INotifyPropertyChanged // Реализуем интерфейс
@@ -415,6 +416,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     private long _lastBytesDownloaded;
     private DateTime _lastProgressUpdate;
 
+    // --- Поля для пакетного обновления UI ---
+    private DispatcherTimer _uiUpdateTimer;
+    private ConcurrentQueue<DateTime> _processedDatesSinceLastUpdate = new ConcurrentQueue<DateTime>();
+    private long _lastProcessedCountForUI = 0; 
+    private const int UIUpdateIntervalMilliseconds = 1000; 
+    private long _processedFilesCounter = 0; // <--- Делаем полем класса
+    // --------------------------------------
+
     static DownloaderViewModel()
     {
         // Настройка обработчика HTTP
@@ -488,9 +497,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         StatusMessage = "Готов"; // Начальный статус
         FileLogger.Log("Конструктор DownloaderViewModel: Завершен");
+
+        InitializeUiUpdateTimer();
     }
 
-    // --- Основная логика ---
+    private void InitializeUiUpdateTimer()
+    {
+        _uiUpdateTimer = new DispatcherTimer(DispatcherPriority.Background); // Низкий приоритет
+        _uiUpdateTimer.Interval = TimeSpan.FromMilliseconds(UIUpdateIntervalMilliseconds);
+        _uiUpdateTimer.Tick += UiUpdateTimer_Tick;
+    }
 
     private async Task StartDownloadAsync()
     {
@@ -503,10 +519,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged(); // Блокируем настройки во время загрузки
 
         // Отслеживание уже обработанных файлов в ЭТОМ сеансе
-        var processedFileIdsInThisSession = new ConcurrentDictionary<int, bool>(); // Используем ConcurrentDictionary для потокобезопасности
+        var processedFileIdsInThisSession = new ConcurrentDictionary<int, bool>();
 
         // Переменные для статистики и статуса
-        long processedFilesCounter = 0;
         string finalStatus = "Загрузка завершена.";
         string basePath = null; // Переменная для хранения базового пути
         StatusMessage = "Инициализация...";
@@ -530,6 +545,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         TimeSpan checkInterval = TimeSpan.FromMinutes(30); // Интервал между проверками новых файлов
         bool firstCheck = true; // Флаг для первой проверки
+
+        // --- Сброс перед стартом таймера и пакетного обновления ---
+        _processedFilesCounter = 0; // <--- Инициализируем поле класса
+        _processedDatesSinceLastUpdate = new ConcurrentQueue<DateTime>(); 
+        _lastProcessedCountForUI = 0; 
+        ProcessedFiles = 0; // Сброс UI счетчика в начале
+        _uiUpdateTimer.Start(); // Запускаем таймер обновления UI
+        // ------------------------------------------------------
 
         try
         {
@@ -633,9 +656,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     tasks.Add(Task.Run(async () =>
                     {
                         int documentMetaId = Convert.ToInt32(row["documentMetaID"]);
+                        DateTime publishDate = DateTime.Now; // Инициализация значением по умолчанию
                         try
                         {
                             if (token.IsCancellationRequested) return;
+
+                            publishDate = DateTime.Parse(row["publishDate"].ToString()).Date;
 
                             // Обрабатываем файл
                             await ProcessFileAsync(row, targetDbConnectionString, iacConnectionString, databaseName, srcID, flProv, themeId, token, progressReporter);
@@ -643,27 +669,20 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             // Отмечаем как успешно обработанный в этом сеансе
                             processedFileIdsInThisSession.TryAdd(documentMetaId, true);
 
-                            // Обновляем счетчик только после успешной обработки
-                            Interlocked.Increment(ref processedFilesCounter);
+                            // --- ЛОГИКА ДЛЯ ПАКЕТНОГО ОБНОВЛЕНИЯ ---                            
+                            Interlocked.Increment(ref _processedFilesCounter); // <--- Используем поле класса
+                            _processedDatesSinceLastUpdate.Enqueue(publishDate);
+                            // --- КОНЕЦ ЛОГИКИ ДЛЯ ПАКЕТНОГО ОБНОВЛЕНИЯ ---
+
+                            // УБИРАЕМ ПРЯМОЕ ОБНОВЛЕНИЕ UI ОТСЮДА
+                            /*
                             Application.Current.Dispatcher.Invoke(() => {
                                 ProcessedFiles = (int)processedFilesCounter; // Обновляем UI
-                                // Добавляем/обновляем статистику по датам
-                                DateTime publishDate = DateTime.Parse(row["publishDate"].ToString()).Date;
                                 var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == publishDate);
-                                if (dailyStat == null)
-                                {
-                                    dailyStat = new DailyFileCount { Date = publishDate, ProcessedCount = 1 };
-                                    // Попробуем получить общее количество на эту дату из dtTab (если нужно)
-                                    // dailyStat.Count = dtTab.AsEnumerable().Count(r => DateTime.Parse(r["publishDate"].ToString()).Date == publishDate);
-                                    FileCountsPerDate.Add(dailyStat);
-                                }
-                                else
-                                {
-                                    dailyStat.ProcessedCount++;
-                                }
+                                if (dailyStat != null) { dailyStat.ProcessedCount++; }
+                                // Логика добавления новой даты, если ее нет, должна быть в Initialize/UpdateDateStatistics
                             });
-
-
+                            */
                         }
                         catch (OperationCanceledException)
                         {
@@ -723,7 +742,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 // Сюда не должны попасть при нормальном завершении цикла while, но на всякий случай
                 finalStatus = "Загрузка завершена.";
             }
-             AddLogMessage($"Всего обработано файлов в этом сеансе: {processedFilesCounter}");
+             AddLogMessage($"Всего обработано файлов в этом сеансе: {_processedFilesCounter}");
 
         }
         catch (OperationCanceledException)
@@ -743,14 +762,20 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
         finally
         {
+            _uiUpdateTimer.Stop(); // Останавливаем таймер
+            // Выполняем финальное обновление UI, чтобы учесть все, что накопилось
+            UpdateUiFromTimerTick(); 
+            
             // --- Завершение и очистка ---
             IsDownloading = false;
-            if (processedFilesCounter > 0 && !string.IsNullOrEmpty(basePath))
+            // Используем поле класса _processedFilesCounter
+            if (_processedFilesCounter > 0 && !string.IsNullOrEmpty(basePath))
             {
                 finalStatus += $" Файлы сохранены в: {basePath}..."; // Убрать одинарный обратный слеш
                 AddLogMessage($"Успешно обработанные файлы сохранены в подпапки директории: {basePath}");
             }
-            else if (processedFilesCounter > 0 && srcID != 0)
+            // Используем поле класса _processedFilesCounter
+            else if (_processedFilesCounter > 0 && srcID != 0)
             {
                  AddLogMessage($"Обработка файлов для источника ID={srcID} завершена.");
             }
@@ -769,6 +794,54 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             // В блоке finally обновляем статус загрузки - UpdateFlag не используется в этой логике, убираем
             // UpdateFlag = false;
+        }
+    }
+
+    private void UiUpdateTimer_Tick(object sender, EventArgs e)
+    {
+        UpdateUiFromTimerTick();
+    }
+
+    private void UpdateUiFromTimerTick()
+    {
+        long currentTotalProcessed = Interlocked.Read(ref _processedFilesCounter);
+        // Обновляем главный счетчик, только если значение изменилось
+        if (currentTotalProcessed != _lastProcessedCountForUI)
+        {
+            ProcessedFiles = (int)currentTotalProcessed;
+            _lastProcessedCountForUI = currentTotalProcessed;
+        }
+
+        // Обрабатываем очередь дат
+        var datesToUpdate = new Dictionary<DateTime, int>();
+        while (_processedDatesSinceLastUpdate.TryDequeue(out DateTime date))
+        {
+            if (datesToUpdate.ContainsKey(date))
+            {
+                datesToUpdate[date]++;
+            }
+            else
+            {    
+                datesToUpdate[date] = 1;
+            }
+        }
+
+        if (datesToUpdate.Count > 0)
+        {
+             // Обновляем статистику в UI потоке
+             foreach (var kvp in datesToUpdate)
+             {
+                 var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == kvp.Key);
+                 if (dailyStat != null)
+                 {
+                     dailyStat.ProcessedCount += kvp.Value;
+                 }
+                 else
+                 {
+                     // Эта ситуация маловероятна, т.к. Initialize/UpdateDateStatistics должны были добавить дату
+                     AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика для даты {kvp.Key:dd.MM.yyyy} при обновлении счетчика обработанных.", "Warning");
+                 }
+             }
         }
     }
 
