@@ -236,6 +236,11 @@
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Name="LogScrollViewer">
                         <ItemsControl ItemsSource="{Binding FilteredLogMessages}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel IsVirtualizing="True" VirtualizationMode="Recycling"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:LogMessage}">
                                     <TextBlock Style="{StaticResource LogMessageStyle}" Margin="5,2" TextWrapping="Wrap">
