@@ -31,6 +31,11 @@ using Microsoft.Win32;
 using static System.Windows.Clipboard;
 using Serilog;
 using Serilog.Events;
+using Microsoft.Extensions.Logging;
+using Microsoft.Data.Sqlite; // Добавлено для Sqlite
+using SharpCompress.Archives; // <-- Добавлено
+using SharpCompress.Common; // <-- Добавлено
+using System.IO.Compression; // <-- Для Zip (если понадобится отдельно)
 
 // --- Добавляем класс для хранения статистики по датам ---
 public class DailyFileCount : INotifyPropertyChanged // Реализуем интерфейс
@@ -1006,6 +1011,71 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                          // Можно решить, считать ли это критической ошибкой
                          // throw new Exception($"Файл '{originalFileName}' поврежден или отсутствует после скачивания.");
                     }
+
+                    // --- ДОБАВЛЕНО: Распаковка архивов ---
+                    string extension = Path.GetExtension(fileDocument).ToLowerInvariant();
+                    if (extension == ".zip" || extension == ".rar")
+                    {
+                        string extractionPath = Path.Combine(Path.GetDirectoryName(fileDocument), Path.GetFileNameWithoutExtension(fileDocument));
+                        AddLogMessage($"Обнаружен архив '{originalFileName}'. Попытка распаковки в: {extractionPath}");
+                        try
+                        {
+                            // Создаем папку для распаковки, если не существует
+                            if (!Directory.Exists(extractionPath))
+                            {
+                                Directory.CreateDirectory(extractionPath);
+                                AddLogMessage($"Создана директория для распаковки: {extractionPath}");
+                            }
+                            else
+                            {
+                                AddLogMessage($"Директория для распаковки уже существует: {extractionPath}");
+                            }
+
+                            // await Task.Run(() => // Выполняем распаковку в фоновом потоке - УБРАНО, ТАК КАК АРХИВЫ НЕБОЛЬШИЕ
+                            // {
+                            using (var archive = ArchiveFactory.Open(fileDocument))
+                            {
+                                foreach (var entry in archive.Entries)
+                                {
+                                    if (!entry.IsDirectory)
+                                    {
+                                        // Используем опции для перезаписи существующих файлов
+                                        entry.WriteToDirectory(extractionPath, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
+                                    }
+                                }
+                            }
+                            // }, token); // Передаем токен отмены - УБРАНО
+
+                            AddLogMessage($"Архив '{originalFileName}' успешно распакован в {extractionPath}");
+
+                            // ОПЦИОНАЛЬНО: Удалить исходный архив после успешной распаковки
+                            // if (CurrentSettings.DeleteArchiveAfterExtraction) // Пример условия из настроек
+                            // {
+                            //     try
+                            //     {
+                            //         File.Delete(fileDocument);
+                            //         AddLogMessage($"Исходный архив '{originalFileName}' удален.");
+                            //     }
+                            //     catch (Exception deleteEx)
+                            //     {
+                            //         AddLogMessage($"Ошибка при удалении исходного архива '{originalFileName}': {deleteEx.Message}", "Error");
+                            //     }
+                            // }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            AddLogMessage($"Распаковка архива '{originalFileName}' отменена.", "Warning");
+                            // Подумать, нужно ли удалять частично распакованные файлы или папку
+                            throw; // Перебрасываем отмену дальше
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLogMessage($"Ошибка при распаковке архива '{originalFileName}': {ex.Message}", "Error");
+                            // Не прерываем основной процесс из-за ошибки распаковки, но логируем
+                        }
+                    }
+                    // --- КОНЕЦ: Распаковка архивов ---
+
                 }
                 catch (OperationCanceledException) { throw; } // Просто перебрасываем отмену
                 catch (Exception webEx) // Ловит исключение из цикла или из блока выше
