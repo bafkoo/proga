@@ -443,6 +443,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     private long _processedFilesCounter = 0; // <--- Делаем полем класса
     // --------------------------------------
 
+    // --- Очередь для буферизации логов ---
+    private ConcurrentQueue<LogMessage> _logMessageQueue = new ConcurrentQueue<LogMessage>();
+
+    // --- Поле для хранения имени последнего обрабатываемого файла ---
+    private string _lastProcessedFileName = null;
+
+    // --- Словарь для быстрой статистики по датам ---
+    private Dictionary<DateTime, DailyFileCount> _fileCountsDict = new Dictionary<DateTime, DailyFileCount>();
+
+    // --- Флаг завершения асинхронной инициализации ---
+    private volatile bool _isInitialized = false;
+
     static DownloaderViewModel()
     {
         // Настройка обработчика HTTP
@@ -453,7 +465,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
         };
 
-        _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
+        // Устанавливаем таймаут в 2 минуты
+        _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
 
         // Настройка заголовков по умолчанию
         _httpClient.DefaultRequestHeaders.Clear();
@@ -483,20 +496,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         LoadConfigurationAndSettings(); 
         FileLogger.Log("Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен");
 
-        LoadAvailableDatabases();
-        FileLogger.Log("Конструктор DownloaderViewModel: LoadAvailableDatabases завершен");
-        
-        // Загружаем темы сразу после конфигурации, т.к. они из IAC
-        LoadAvailableThemes(); 
-        FileLogger.Log("Конструктор DownloaderViewModel: LoadAvailableThemes завершен");
+        // Убираем синхронные вызовы LoadAvailableDatabases и LoadAvailableThemes отсюда
+        // LoadAvailableDatabases();
+        // LoadAvailableThemes(); 
 
         LoadUiThemesAndAccents();
         FileLogger.Log("Конструктор DownloaderViewModel: LoadUiThemesAndAccents завершен");
 
-        // Инициализация команд
+        // Инициализация команд (обновляем CanExecute для StartDownloadCommand)
         StartDownloadCommand = new RelayCommand(
             async () => await StartDownloadAsync(),
-            () => !IsDownloading && string.IsNullOrEmpty(Error) && !string.IsNullOrEmpty(_baseConnectionString) && SelectedDatabase != null && SelectedTheme != null
+            // Теперь проверяем IsInitialized
+            () => !IsDownloading && _isInitialized && !string.IsNullOrEmpty(_baseConnectionString) && SelectedDatabase != null && SelectedTheme != null // Убрали проверку Error
         );
         CancelDownloadCommand = new RelayCommand(
             () => CancelDownload(),
@@ -504,20 +515,55 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         );
         OpenSettingsCommand = new RelayCommand(OpenSettingsWindow, () => !IsDownloading);
         ClearLogCommand = new RelayCommand(
-            () => LogMessages.Clear(),
+            () => { LogMessages.Clear(); UpdateFilteredLogMessages(); }, // Добавили обновление фильтра
             () => LogMessages.Count > 0
         );
         CopyLogToClipboardCommand = new RelayCommand(
-            () => SetText(string.Join(Environment.NewLine, LogMessages)),
-            () => LogMessages.Count > 0
+            () => SetText(string.Join(Environment.NewLine, FilteredLogMessages.Select(lm => $"[{lm.Timestamp:G}] [{lm.Type}] {lm.Message}"))), // Копируем отфильтрованные
+            () => FilteredLogMessages.Count > 0
         );
         OpenLogDirectoryCommand = new RelayCommand<LogMessage>(OpenLogDirectory, CanOpenLogDirectory);
         FileLogger.Log("Конструктор DownloaderViewModel: Команды инициализированы");
 
-        StatusMessage = "Готов"; // Начальный статус
+        StatusMessage = "Инициализация..."; // Начальный статус изменен
         FileLogger.Log("Конструктор DownloaderViewModel: Завершен");
 
         InitializeUiUpdateTimer();
+
+        // Запускаем асинхронную инициализацию
+        _ = InitializeAsync(); // Вызов без await
+    }
+
+    private async Task InitializeAsync()
+    {
+        AddLogMessage("Начало асинхронной инициализации...");
+        try
+        {
+            // Запускаем загрузку параллельно
+            Task dbLoadTask = LoadAvailableDatabasesAsync();
+            Task themeLoadTask = LoadAvailableThemesAsync();
+
+            // Ожидаем завершения обеих задач
+            await Task.WhenAll(dbLoadTask, themeLoadTask);
+
+            _isInitialized = true; // Устанавливаем флаг
+            StatusMessage = "Готов"; // Обновляем статус
+            AddLogMessage("Асинхронная инициализация успешно завершена.", "Success");
+
+             // Уведомляем команду, что она может стать активной
+            Application.Current?.Dispatcher?.Invoke(() => 
+            {
+                 (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            _isInitialized = false; // Остаемся неинициализированными
+            StatusMessage = "Ошибка инициализации";
+            AddLogMessage($"Критическая ошибка во время асинхронной инициализации: {ex.Message}", "Error");
+            FileLogger.Log($"InitializeAsync Exception: {ex}");
+            // Можно показать MessageBox или другой индикатор критической ошибки
+        }
     }
 
     private void InitializeUiUpdateTimer()
@@ -546,6 +592,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         StatusMessage = "Инициализация...";
         LogMessages.Clear();
         FileCountsPerDate.Clear();
+        _fileCountsDict.Clear(); // Очищаем словарь тоже
         AddLogMessage("Запуск процесса загрузки...");
 
         // Получаем параметры из UI один раз
@@ -613,21 +660,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                                  try { /* ... код определения basePath ... */ }
                                  catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
                              }
-                             // Инициализация статистики по датам
-                             InitializeDateStatistics(dtTab);
+                             // Асинхронная Инициализация статистики
+                             await InitializeDateStatisticsAsync(dtTab);
                         }
                         else if (!firstCheck && currentTotalFiles > TotalFiles) 
                         {
                             AddLogMessage($"Обнаружено {currentTotalFiles - TotalFiles} новых файлов. Общее количество теперь: {currentTotalFiles}");
                             TotalFiles = currentTotalFiles; // Обновляем общее количество
-                            // Обновляем статистику по датам, добавляя новые или увеличивая Count
-                            UpdateDateStatistics(dtTab);
+                            // Асинхронное Обновление статистики
+                            await UpdateDateStatisticsAsync(dtTab);
                         }
                         else if (firstCheck && currentTotalFiles == 0)
                         {
                             TotalFiles = 0;
                             ProcessedFiles = 0;
                             FileCountsPerDate.Clear(); // Убедимся, что статистика пуста
+                            _fileCountsDict.Clear(); // Очищаем словарь
                             AddLogMessage("Не найдено файлов для обработки за указанный период.");
                         }
                     }
@@ -818,11 +866,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private void UiUpdateTimer_Tick(object sender, EventArgs e)
     {
-        UpdateUiFromTimerTick();
+        // Вызываем обновление UI из таймера в UI потоке
+        Application.Current?.Dispatcher?.BeginInvoke(
+            new Action(() => UpdateUiFromTimerTick()),
+            DispatcherPriority.Background // Используем низкий приоритет
+        );
     }
 
     private void UpdateUiFromTimerTick()
     {
+        // Обновление счетчиков
         long currentTotalProcessed = Interlocked.Read(ref _processedFilesCounter);
         // Обновляем главный счетчик, только если значение изменилось
         if (currentTotalProcessed != _lastProcessedCountForUI)
@@ -831,37 +884,76 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             _lastProcessedCountForUI = currentTotalProcessed;
         }
 
-        // Обрабатываем очередь дат
+        // Обработка очереди дат (ОПТИМИЗИРОВАНО)
         var datesToUpdate = new Dictionary<DateTime, int>();
         while (_processedDatesSinceLastUpdate.TryDequeue(out DateTime date))
         {
             if (datesToUpdate.ContainsKey(date))
-            {
                 datesToUpdate[date]++;
-            }
             else
-            {    
                 datesToUpdate[date] = 1;
-            }
         }
 
         if (datesToUpdate.Count > 0)
         {
-             // Обновляем статистику в UI потоке
-             foreach (var kvp in datesToUpdate)
-             {
-                 var dailyStat = FileCountsPerDate.FirstOrDefault(d => d.Date == kvp.Key);
-                 if (dailyStat != null)
-                 {
-                     dailyStat.ProcessedCount += kvp.Value;
-                 }
-                 else
-                 {
-                     // Эта ситуация маловероятна, т.к. Initialize/UpdateDateStatistics должны были добавить дату
-                     AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика для даты {kvp.Key:dd.MM.yyyy} при обновлении счетчика обработанных.", "Warning");
-                 }
-             }
+            // Обновляем статистику в UI потоке, используя словарь
+            foreach (var kvp in datesToUpdate)
+            {
+                // Быстрый поиск в словаре
+                if (_fileCountsDict.TryGetValue(kvp.Key, out var dailyStat))
+                {
+                    dailyStat.ProcessedCount += kvp.Value;
+                }
+                else
+                {
+                    // Словарь должен быть синхронизирован с ObservableCollection
+                    // Эта ветка маловероятна при правильной инициализации/обновлении
+                    AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}.", "Warning");
+                    // Попытка найти в ObservableCollection (медленнее)
+                    var statFromList = FileCountsPerDate.FirstOrDefault(d => d.Date == kvp.Key);
+                    if (statFromList != null)
+                        statFromList.ProcessedCount += kvp.Value;
+                }
+            }
         }
+
+        // --- Обновление имени текущего файла ---
+        string latestFileName = _lastProcessedFileName; // Считываем последнее имя
+        if (latestFileName != null && latestFileName != CurrentFileName) // Обновляем, если изменилось
+        {
+            CurrentFileName = latestFileName; // Присваивание вызовет OnPropertyChanged
+        }
+        // --- Конец обновления имени файла ---
+
+        // --- Обработка очереди логов ---
+        var logsToAdd = new List<LogMessage>();
+        while (_logMessageQueue.TryDequeue(out var logMessage))
+        {
+            logsToAdd.Add(logMessage);
+        }
+
+        if (logsToAdd.Count > 0)
+        {
+            // Ограничиваем общее количество логов
+            int removeCount = LogMessages.Count + logsToAdd.Count - 1000; // Макс. 1000 логов
+            if (removeCount > 0)
+            {
+                for (int i = 0; i < removeCount; i++)
+                {
+                    LogMessages.RemoveAt(0);
+                }
+            }
+
+            // Добавляем новые логи пачкой
+            foreach (var log in logsToAdd)
+            {
+                LogMessages.Add(log);
+            }
+
+            // Обновляем отфильтрованный список ОДИН РАЗ после добавления пачки
+            UpdateFilteredLogMessages();
+        }
+        // --- Конец обработки очереди логов ---
     }
 
     // Вспомогательный асинхронный метод для получения списка файлов
@@ -905,6 +997,10 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         string docDescription = row["docDescription"].ToString();
         object urlIdFromDb = row["urlID"];
 
+        // --- Снижаем частоту обновления UI ---
+        long currentCount = Interlocked.Increment(ref _processedFilesCounter);
+        bool shouldUpdateUI = currentCount % 5 == 0; // Обновляем UI только на каждом 5-м файле
+
         // --- Определение суффикса и путей ---
         string suffixName = "";
         if (databaseName == "notificationEF") suffixName = "_nef";
@@ -942,7 +1038,6 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
               throw new InvalidOperationException($"Не удалось сформировать путь к директории для documentMetaID: {documentMetaID}, srcID: {srcID}");
          }
 
-
         // --- Основная логика в зависимости от флага flProv ---
         try // Обернем всю обработку файла в try-finally для гарантии задержки
         {
@@ -976,7 +1071,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 }
 
                 // --- Скачивание с логикой повтора ---
-                AddLogMessage($"Скачивание: {url} -> {fileDocument}");
+                // Логируем только для визуализации в UI, не для каждого файла
+                if (shouldUpdateUI)
+                {
+                    AddLogMessage($"Скачивание: {url} -> {fileDocument}");
+                }
+                
                 long fileSize = 0;
                 DownloadResult downloadResult = null; // Объявляем здесь
                 bool downloadSucceeded = false;
@@ -1010,8 +1110,6 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     // Если мы в HalfOpen, разрешаем одну попытку (код ниже)
                     // Если мы в Closed, все как обычно
 
-                    Application.Current.Dispatcher.Invoke(() => CurrentFileName = originalFileName); // Обновляем UI перед скачиванием
-
                     // --- УМНЫЙ ПОДХОД: Добавляем адаптивную задержку перед скачиванием ---
                     int currentAdaptiveDelay = _adaptiveDelayMilliseconds;
                     if (currentAdaptiveDelay > 0)
@@ -1023,17 +1121,54 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     for (int attempt = 1; attempt <= maxRetries; attempt++)
                     {
                         token.ThrowIfCancellationRequested(); // Проверяем отмену перед каждой попыткой
-                        AddLogMessage($"Попытка скачивания #{attempt} для: {originalFileName}");
+                        
+                        // Сокращаем количество логов
+                        if (attempt > 1 || shouldUpdateUI) 
+                        {
+                            AddLogMessage($"Попытка скачивания #{attempt} для: {originalFileName}");
+                        }
+                        
                         downloadResult = await WebGetAsync(url, fileDocument, token, progress);
 
                         if (downloadResult.Success)
                         {
                             fileSize = downloadResult.ActualSize;
                             downloadSucceeded = true;
-                            AddLogMessage($"Файл '{originalFileName}' скачан успешно (попытка {attempt}), размер: {fileSize} байт.");
-                            break; // Выходим из цикла повторов при успехе
+                            
+                            // Сокращаем логирование
+                            if (shouldUpdateUI)
+                            {
+                                AddLogMessage($"Файл '{originalFileName}' скачан успешно (попытка {attempt}), размер: {fileSize} байт.");
+                            }
+                            
+                             // --- СБРОС СЧЕТЧИКОВ ПРИ УСПЕХЕ ---
+                             Interlocked.Exchange(ref _consecutive429Failures, 0); // Сбрасываем счетчик ошибок 429
+
+                             // Если мы были в HalfOpen и успешны, замыкаем предохранитель
+                             if (_breakerState == CircuitBreakerState.HalfOpen)
+                             {
+                                  lock(_breakerLock)
+                                  {
+                                       if (_breakerState == CircuitBreakerState.HalfOpen) // Доп. проверка
+                                       {
+                                           _breakerState = CircuitBreakerState.Closed;
+                                           AddLogMessage("Circuit Breaker ЗАМКНУТ после успешной попытки в Half-Open.");
+                                       }
+                                  }
+                             }
+
+                             // --- УМНЫЙ ПОДХОД: Уменьшаем адаптивную задержку при успехе ---
+                             currentAdaptiveDelay = _adaptiveDelayMilliseconds; // Просто считываем текущее значение
+                             if (currentAdaptiveDelay > 0)
+                             {
+                                 int newAdaptiveDelay = Math.Max(0, currentAdaptiveDelay - 500); // Уменьшаем на 0.5 сек, но не ниже 0
+                                 Interlocked.CompareExchange(ref _adaptiveDelayMilliseconds, newAdaptiveDelay, currentAdaptiveDelay); // Атомарно устанавливаем новое значение, если оно не изменилось
+                                 AddLogMessage($"Уменьшена адаптивная задержка до: {newAdaptiveDelay} мс");
+                             }
+                             break; // Выходим из цикла повторов при успехе
                         }
-                        else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries)
+                        // --- ВОССТАНАВЛИВАЕМ БЛОК ELSE IF ---
+                        else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries) 
                         {
                             int delaySeconds = retryDelaySeconds;
                             // --- УМНЫЙ ПОДХОД: Проверяем Retry-After ---
@@ -1076,62 +1211,33 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             await Task.Delay(totalDelay, token);
                             retryDelaySeconds *= 2; // Увеличиваем *нашу* экспоненциальную задержку на случай, если Retry-After не было
                         }
-                        else // Успех или другая ошибка
+                        // --- КОНЕЦ ВОССТАНОВЛЕННОГО БЛОКА ELSE IF ---
+                        else // Успех или другая ошибка (или последняя попытка 429)
                         {
-                            if (downloadResult.Success)
+                            // Успех уже обработан в первом if. Здесь только ошибки.
+                            AddLogMessage($"Не удалось скачать файл '{originalFileName}' после {attempt} попыток. Ошибка: {downloadResult.ErrorMessage}");
+                            
+                            // Если мы были в HalfOpen и получили ошибку (любую), снова размыкаем предохранитель
+                            if (_breakerState == CircuitBreakerState.HalfOpen)
                             {
-                                 // --- СБРОС СЧЕТЧИКОВ ПРИ УСПЕХЕ ---
-                                 Interlocked.Exchange(ref _consecutive429Failures, 0); // Сбрасываем счетчик ошибок 429
-
-                                 // Если мы были в HalfOpen и успешны, замыкаем предохранитель
-                                 if (_breakerState == CircuitBreakerState.HalfOpen)
+                                 lock(_breakerLock)
                                  {
-                                      lock(_breakerLock)
-                                      {
-                                           if (_breakerState == CircuitBreakerState.HalfOpen) // Доп. проверка
-                                           {
-                                               _breakerState = CircuitBreakerState.Closed;
-                                               AddLogMessage("Circuit Breaker ЗАМКНУТ после успешной попытки в Half-Open.");
-                                           }
-                                      }
-                                 }
-
-                                 // --- УМНЫЙ ПОДХОД: Уменьшаем адаптивную задержку при успехе ---
-                                 currentAdaptiveDelay = _adaptiveDelayMilliseconds; // Просто считываем текущее значение
-                                 if (currentAdaptiveDelay > 0)
-                                 {
-                                     int newAdaptiveDelay = Math.Max(0, currentAdaptiveDelay - 500); // Уменьшаем на 0.5 сек, но не ниже 0
-                                     Interlocked.CompareExchange(ref _adaptiveDelayMilliseconds, newAdaptiveDelay, currentAdaptiveDelay); // Атомарно устанавливаем новое значение, если оно не изменилось
-                                     AddLogMessage($"Уменьшена адаптивная задержка до: {newAdaptiveDelay} мс");
-                                 }
-                                 break; // Выходим из цикла повторов при успехе
-                            }
-                            else
-                            {
-                                AddLogMessage($"Не удалось скачать файл '{originalFileName}' после {attempt} попыток. Ошибка: {downloadResult.ErrorMessage}");
-                                
-                                // Если мы были в HalfOpen и получили ошибку (любую), снова размыкаем предохранитель
-                                if (_breakerState == CircuitBreakerState.HalfOpen)
-                                {
-                                     lock(_breakerLock)
+                                     if (_breakerState == CircuitBreakerState.HalfOpen)
                                      {
-                                         if (_breakerState == CircuitBreakerState.HalfOpen)
-                                         {
-                                             _breakerOpenUntilUtc = DateTime.UtcNow + BreakerOpenDuration; // Можно увеличить время? Пока нет.
-                                             _breakerState = CircuitBreakerState.Open;
-                                             AddLogMessage("Circuit Breaker снова РАЗОМКНУТ после неудачной попытки в Half-Open.");
-                                         }
+                                         _breakerOpenUntilUtc = DateTime.UtcNow + BreakerOpenDuration; // Можно увеличить время? Пока нет.
+                                         _breakerState = CircuitBreakerState.Open;
+                                         AddLogMessage("Circuit Breaker снова РАЗОМКНУТ после неудачной попытки в Half-Open.");
                                      }
-                                }
-                                
-                                // Сбрасываем счетчик последовательных ошибок 429, т.к. ошибка была НЕ 429 (или мы уже разомкнули CB)
-                                // Хотя, если ошибка в HalfOpen была 429, то счетчик уже увеличился выше
-                                // Подумать над этим моментом. Пока оставим так.
-                                
-                                break; // Выход из цикла при других ошибках или последней попытке 429
+                                 }
                             }
+                            
+                            // Сбрасываем счетчик последовательных ошибок 429, т.к. ошибка была НЕ 429 (или мы уже разомкнули CB)
+                            // Хотя, если ошибка в HalfOpen была 429, то счетчик уже увеличился выше
+                            // Подумать над этим моментом. Пока оставим так.
+                            
+                            break; // Выход из цикла при других ошибках или последней попытке 429
                         }
-                    }
+                    } // Конец for loop
 
                     // Если после всех попыток загрузка не удалась
                     if (!downloadSucceeded)
@@ -1328,6 +1434,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 // В методе WebGetAsync добавляем обновление прогресса
                 progress?.Report((double)_totalBytesDownloaded / fileSize * 100);
                 UpdateDownloadStats(fileSize);
+
+                // --- Обновляем поле с именем файла для таймера ---
+                _lastProcessedFileName = originalFileName;
             }
             else // Режим проверки ошибок (flProv == true)
             {
@@ -1657,29 +1766,35 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             Timestamp = DateTime.Now
         };
 
-        Application.Current?.Dispatcher?.Invoke(() =>
-        {
-            if (LogMessages.Count > 1000)
-            {
-                LogMessages.RemoveAt(0);
-            }
-            LogMessages.Add(logMessage);
-            UpdateFilteredLogMessages();
-        });
+        // Просто добавляем сообщение в потокобезопасную очередь
+        _logMessageQueue.Enqueue(logMessage);
     }
 
     private void UpdateFilteredLogMessages()
     {
+        // Этот метод вызывается из UpdateUiFromTimerTick в UI потоке
+
+        IEnumerable<LogMessage> messagesToShow;
         if (SelectedLogFilterType == null || SelectedLogFilterType.Type == "All")
         {
-            FilteredLogMessages = new ObservableCollection<LogMessage>(LogMessages);
+            messagesToShow = LogMessages; // Показываем все сообщения
         }
         else
         {
-            FilteredLogMessages = new ObservableCollection<LogMessage>(
-                LogMessages.Where(m => m.Type == SelectedLogFilterType.Type)
-            );
+            messagesToShow = LogMessages.Where(m => m.Type == SelectedLogFilterType.Type);
         }
+
+        // Оптимизация: Очищаем существующую коллекцию и добавляем элементы
+        // вместо создания новой коллекции каждый раз.
+        _filteredLogMessages.Clear();
+        foreach (var message in messagesToShow)
+        {
+            _filteredLogMessages.Add(message);
+        }
+        // Уведомление об изменении коллекции (если Clear/Add не делают это автоматически)
+        // Для стандартной ObservableCollection это не нужно, но если используется другая реализация,
+        // может понадобиться вызвать OnPropertyChanged(nameof(FilteredLogMessages));
+        // В данном случае, предполагаем, что Clear/Add достаточно для обновления UI.
     }
 
     private void InitializeLogFilterTypes()
@@ -2106,74 +2221,203 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     }
 
     // --- НОВЫЕ МЕТОДЫ для статистики по датам ---
-    private void InitializeDateStatistics(DataTable fileTable)
+    private async Task InitializeDateStatisticsAsync(DataTable fileTable)
     {
         if (fileTable == null) return;
-        AddLogMessage("InitializeDateStatistics: Расчет начальной статистики по датам...");
+        AddLogMessage("InitializeDateStatisticsAsync: Расчет начальной статистики...");
         try
         {
-            var countsByDate = fileTable.AsEnumerable()
-                .Where(row => row["publishDate"] != DBNull.Value)
-                .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
-                .Select(g => new { Date = g.Key, Count = g.Count() })
-                .OrderBy(x => x.Date);
+            // Выполняем LINQ в фоновом потоке
+            var countsByDateList = await Task.Run(() => 
+            {
+                return fileTable.AsEnumerable()
+                    .Where(row => row["publishDate"] != DBNull.Value)
+                    .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
+                    .Select(g => new { Date = g.Key, Count = g.Count() })
+                    .OrderBy(x => x.Date)
+                    .ToList(); // Материализуем результат в фоновом потоке
+            });
 
-            Application.Current.Dispatcher.Invoke(() =>
+            // Обновляем словарь и коллекцию в UI потоке
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 FileCountsPerDate.Clear();
-                foreach (var item in countsByDate)
+                _fileCountsDict.Clear();
+                foreach (var item in countsByDateList)
                 {
-                    FileCountsPerDate.Add(new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 });
+                    var newStat = new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 };
+                    FileCountsPerDate.Add(newStat);
+                    _fileCountsDict.Add(item.Date, newStat);
                 }
-                 AddLogMessage($"InitializeDateStatistics: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
+                 AddLogMessage($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
             });
         }
         catch (Exception ex)
         {
-             AddLogMessage($"InitializeDateStatistics: Ошибка при расчете статистики: {ex.Message}", "Error");
+             AddLogMessage($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
         }
     }
 
-    private void UpdateDateStatistics(DataTable fileTable)
+    private async Task UpdateDateStatisticsAsync(DataTable fileTable)
     {
         if (fileTable == null) return;
-         AddLogMessage("UpdateDateStatistics: Обновление статистики по датам после обнаружения новых файлов...");
+         AddLogMessage("UpdateDateStatisticsAsync: Обновление статистики...");
          try
          {
-             var currentCountsByDate = fileTable.AsEnumerable()
-                 .Where(row => row["publishDate"] != DBNull.Value)
-                 .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
-                 .Select(g => new { Date = g.Key, Count = g.Count() });
-
-             Application.Current.Dispatcher.Invoke(() =>
+             // Выполняем LINQ в фоновом потоке
+             var currentCountsByDateDict = await Task.Run(() => 
              {
-                 foreach (var item in currentCountsByDate)
-                 {
-                     var existingStat = FileCountsPerDate.FirstOrDefault(d => d.Date == item.Date);
-                     if (existingStat == null)
-                     {
-                         // Новая дата - добавляем
-                         FileCountsPerDate.Add(new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 });
-                         AddLogMessage($"UpdateDateStatistics: Добавлена новая дата {item.Date:dd.MM.yyyy} с {item.Count} файлами.");
-                     }
-                     else if (existingStat.Count < item.Count)
-                     {
-                         // Существующая дата, но файлов стало больше - обновляем Count
-                         AddLogMessage($"UpdateDateStatistics: Обновлен счетчик для даты {item.Date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {item.Count}.");
-                         existingStat.Count = item.Count;
-                     }
-                     // Если Count не изменился или уменьшился (маловероятно), ничего не делаем
-                 }
-                 // Можно добавить сортировку FileCountsPerDate по дате, если нужно
-                 // var sorted = FileCountsPerDate.OrderBy(d => d.Date).ToList();
-                 // FileCountsPerDate = new ObservableCollection<DailyFileCount>(sorted);
+                 return fileTable.AsEnumerable()
+                     .Where(row => row["publishDate"] != DBNull.Value)
+                     .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
+                     .ToDictionary(g => g.Key, g => g.Count()); // Сразу в словарь
              });
-              AddLogMessage($"UpdateDateStatistics: Обновление статистики завершено.");
+
+            // Обновляем словарь и коллекцию в UI потоке
+             await Application.Current.Dispatcher.InvokeAsync(() =>
+             {
+                 foreach (var kvp in currentCountsByDateDict)
+                 {
+                     var date = kvp.Key;
+                     var newCount = kvp.Value;
+
+                     if (!_fileCountsDict.TryGetValue(date, out var existingStat))
+                     {
+                         // Новая дата
+                         var newStat = new DailyFileCount { Date = date, Count = newCount, ProcessedCount = 0 };
+                         FileCountsPerDate.Add(newStat); // Добавляем в ObservableCollection
+                         _fileCountsDict.Add(date, newStat); // Добавляем в словарь
+                         AddLogMessage($"UpdateDateStatisticsAsync: Добавлена дата {date:dd.MM.yyyy} ({newCount} файлов).");
+                     }
+                     else if (existingStat.Count < newCount)
+                     {
+                         // Существующая дата, но файлов стало больше
+                         AddLogMessage($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
+                         existingStat.Count = newCount; // Обновляем свойство, UI обновится через INotifyPropertyChanged
+                     }
+                 }
+                 // Сортировка, если нужна (пока убрана)
+             });
+              AddLogMessage($"UpdateDateStatisticsAsync: Обновление завершено.");
          }
          catch (Exception ex)
          {
-             AddLogMessage($"UpdateDateStatistics: Ошибка при обновлении статистики: {ex.Message}", "Error");
+             AddLogMessage($"UpdateDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
          }
     }
     // --- Конец НОВЫХ МЕТОДОВ для статистики ---
+
+    // --- Асинхронный метод загрузки баз ---
+    private async Task LoadAvailableDatabasesAsync()
+    {
+        AddLogMessage($"LoadAvailableDatabasesAsync: Начало.");
+        if (string.IsNullOrEmpty(_baseConnectionString))
+        {
+            AddLogMessage("LoadAvailableDatabasesAsync: Ошибка - _baseConnectionString пустая.", "Error");
+            await Application.Current.Dispatcher.InvokeAsync(() => 
+                SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases)) // Обновляем UI
+            ); 
+            return;
+        }
+
+        try
+        {
+            var databases = new[] { "fcsNotification", "contract", "purchaseNotice", "requestQuotation" };
+            var availableDbs = new List<DatabaseInfo>();
+            
+            foreach (var db in databases)
+            {
+                try
+                {
+                    var connectionString = _baseConnectionString + $";Initial Catalog={db};Connect Timeout=5"; // Короткий таймаут
+                    using (var connection = new SqlConnection(connectionString))
+                    {
+                        await connection.OpenAsync(); // Асинхронное открытие
+                        
+                        string displayName;
+                        switch (db)
+                        {
+                           // ... (логика switch) ...
+                            case "fcsNotification": displayName = "Извещения 44 (fcsNotification)"; break;
+                            case "contract": displayName = "Контракт (contract)"; break;
+                            case "purchaseNotice": displayName = "Извещения 223 (purchaseNotice)"; break;
+                            case "requestQuotation": displayName = "Запрос цен (requestQuotation)"; break;
+                            default: 
+                                displayName = db;
+                                break; // <-- ДОБАВИТЬ ЭТОТ BREAK
+                        }
+                        availableDbs.Add(new DatabaseInfo { Name = db, DisplayName = displayName });
+                        AddLogMessage($"LoadAvailableDatabasesAsync: База {displayName} доступна.", "Success");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLogMessage($"LoadAvailableDatabasesAsync: База {db} недоступна: {ex.Message}", "Warning");
+                }
+            }
+
+            // Обновляем коллекцию в UI потоке
+            await Application.Current.Dispatcher.InvokeAsync(() => 
+                 SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(availableDbs), nameof(AvailableDatabases))
+            ); 
+             AddLogMessage($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.");
+        }
+        catch (Exception ex)
+        {
+             AddLogMessage($"LoadAvailableDatabasesAsync: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}", "Error");
+             await Application.Current.Dispatcher.InvokeAsync(() => 
+                 SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases))
+             );
+        }
+    }
+
+    // --- Асинхронный метод загрузки тем ---
+    private async Task LoadAvailableThemesAsync()
+    {
+        AddLogMessage("LoadAvailableThemesAsync: Загрузка тем...");
+        if (string.IsNullOrEmpty(_iacConnectionString))
+        {
+             AddLogMessage("LoadAvailableThemesAsync: Ошибка - строка IacConnection не загружена.", "Error");
+             await Application.Current.Dispatcher.InvokeAsync(() => 
+                SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
+             ); 
+             return;
+        }
+
+        try
+        {
+            var connectionString = _iacConnectionString;
+            var themes = new List<ThemeInfo>();
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync(); // Асинхронное открытие
+                using (var command = new SqlCommand("SELECT ThemeID, themeName FROM Theme", connection))
+                {
+                    using (var reader = await command.ExecuteReaderAsync()) // Асинхронное чтение
+                    {
+                        while (await reader.ReadAsync()) // Асинхронное чтение строки
+                        {
+                            themes.Add(new ThemeInfo
+                            {
+                                Id = reader.GetInt32(0),
+                                Name = reader.GetString(1)
+                            });
+                        }
+                    }
+                }
+            }
+            // Обновляем коллекцию в UI потоке
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+                 SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes))
+            ); 
+            AddLogMessage($"LoadAvailableThemesAsync: Загружено {themes.Count} тем.", "Success");
+        }
+        catch (Exception ex)
+        {
+            AddLogMessage($"LoadAvailableThemesAsync: Ошибка при загрузке тем: {ex.Message}", "Error");
+            await Application.Current.Dispatcher.InvokeAsync(() => 
+                SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
+            );
+        }
+    }
 } 

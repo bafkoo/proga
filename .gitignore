@@ -1,0 +1,64 @@
+    # Visual Studio / .NET
+
+    ## Core Visual Studio cache files
+    **/[Bb]in/
+    **/[Oo]bj/
+    **/.vs/
+    *.suo
+    *.user
+
+    ## Build results
+    [Bb]uild/
+    [Rr]elease/
+    [Dd]ebug/
+    *.dll
+    *.exe
+    *.pdb
+    *.manifest
+    *.xml # Если не хотите хранить xml-документацию
+
+    ## IDE/Editor specific files
+    .idea/
+    *.DS_Store
+
+    ## Rider specific files
+    *.sln.iml
+
+    ## User-specific files (like publishing credentials)
+    *.pubxml.user
+
+    ## Environment files
+    .env
+
+    ## Secrets
+    secrets.json
+
+    ## Logs
+    **/[Ll]ogs/
+    *.log
+
+    ## Test results
+    TestResult*/
+    *.trx
+
+    ## Nuget Packages
+    **/packages/
+    *.nupkg
+    # Allow Nuget.Config
+    !**/Nuget.Config
+    !**/nuget.config
+
+    ## Node Modules (if using JS/TS)
+    node_modules/
+
+    ## ReSharper specific
+    _ReSharper*/
+    *.[Rr]e[Ss]harper
+
+    ## DotCover specific
+    *.dotCover
+
+    # Others
+    *.zip
+    *.rar
+    *.7z

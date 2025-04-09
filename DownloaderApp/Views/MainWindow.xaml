@@ -234,7 +234,7 @@
                                 DisplayMemberPath="DisplayName" Margin="5,0,0,0"/>
                     </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Name="LogScrollViewer">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Name="LogScrollViewer" ScrollViewer.CanContentScroll="True">
                         <ItemsControl ItemsSource="{Binding FilteredLogMessages}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
