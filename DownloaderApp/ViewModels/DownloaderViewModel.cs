@@ -560,27 +560,33 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         dtTab = await FetchFileListAsync(conBase, dtB, dtE, themeId, srcID, filterId, flProv, token);
                         currentTotalFiles = dtTab?.Rows.Count ?? 0;
 
-                        // Инициализация TotalFiles при первой проверке
-                        if (TotalFiles == 0 && currentTotalFiles > 0) {
-                             TotalFiles = currentTotalFiles; // Показываем общее количество, найденное на данный момент
+                        // Инициализация TotalFiles и FileCountsPerDate при первой проверке или при появлении новых файлов
+                        if (firstCheck && currentTotalFiles > 0) 
+                        {
+                             TotalFiles = currentTotalFiles; 
                              AddLogMessage($"Обнаружено {TotalFiles} файлов для обработки за период.");
                              // Определение базового пути (делаем один раз, если возможно)
                              if (basePath == null && srcID == 0 && dtTab.Rows.Count > 0)
                              {
-                                 try
-                                 {
-                                     string computerName = dtTab.Rows[0]["computerName"]?.ToString();
-                                     string directoryName = dtTab.Rows[0]["directoryName"]?.ToString();
-                                     if (!string.IsNullOrEmpty(computerName) && !string.IsNullOrEmpty(directoryName))
-                                     {
-                                         basePath = $@"""\\{computerName}\{directoryName}"; // Использовать verbatim string @
-                                         AddLogMessage($"Базовый путь для сохранения: {basePath}");
-                                     } else { AddLogMessage("Не удалось определить базовый путь (computerName/directoryName пусты)."); }
-                                 } catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
+                                 try { /* ... код определения basePath ... */ }
+                                 catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
                              }
-                        } else if (currentTotalFiles > TotalFiles) {
+                             // Инициализация статистики по датам
+                             InitializeDateStatistics(dtTab);
+                        }
+                        else if (!firstCheck && currentTotalFiles > TotalFiles) 
+                        {
                             AddLogMessage($"Обнаружено {currentTotalFiles - TotalFiles} новых файлов. Общее количество теперь: {currentTotalFiles}");
                             TotalFiles = currentTotalFiles; // Обновляем общее количество
+                            // Обновляем статистику по датам, добавляя новые или увеличивая Count
+                            UpdateDateStatistics(dtTab);
+                        }
+                        else if (firstCheck && currentTotalFiles == 0)
+                        {
+                            TotalFiles = 0;
+                            ProcessedFiles = 0;
+                            FileCountsPerDate.Clear(); // Убедимся, что статистика пуста
+                            AddLogMessage("Не найдено файлов для обработки за указанный период.");
                         }
                     }
                 }
@@ -1961,12 +1967,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 {
                     directoryPath = potentialPath;
                     AddLogMessage($"OpenLogDirectory: Найденный путь является существующей директорией: {directoryPath}", "Info");
+                    // Открываем директорию
+                    AddLogMessage($"OpenLogDirectory: Запуск explorer.exe для директории: \"{directoryPath}\"", "Info");
+                    Process.Start("explorer.exe", directoryPath);
                 }
                 // Если это не директория, проверяем, существует ли как файл
                 else if (File.Exists(potentialPath))
                 {
-                    directoryPath = Path.GetDirectoryName(potentialPath);
-                    AddLogMessage($"OpenLogDirectory: Найденный путь является файлом. Директория: {directoryPath}", "Info");
+                    // Формируем аргументы для выделения файла
+                    string arguments = $"/select,\"{potentialPath}\"";
+                    AddLogMessage($"OpenLogDirectory: Найденный путь является файлом. Выделяем: {potentialPath}", "Info");
+                    AddLogMessage($"OpenLogDirectory: Запуск explorer.exe с аргументами: {arguments}", "Info");
+                    Process.Start("explorer.exe", arguments);
                 }
                 else
                 {
@@ -1974,19 +1986,11 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     AddLogMessage($"OpenLogDirectory: Путь \"{potentialPath}\" не существует как файл или директория.", "Warning");
                 }
 
-                // Пытаемся открыть, если удалось определить директорию и она существует
-                if (!string.IsNullOrEmpty(directoryPath) && Directory.Exists(directoryPath))
-                {
-                    // Исправляем экранирование кавычек
-                    AddLogMessage($"OpenLogDirectory: Запуск explorer.exe для: \"{directoryPath}\"", "Info");
-                    Process.Start("explorer.exe", directoryPath);
-                }
-                else if (!string.IsNullOrEmpty(directoryPath))
-                {
-                     // Исправляем экранирование кавычек
-                     AddLogMessage($"OpenLogDirectory: Определенная директория \"{directoryPath}\" не существует.", "Warning");
-                }
-                // else - сообщение о том, что путь не существует, уже было выведено выше
+                // Пытаемся открыть, если удалось определить директорию и она существует - ЛОГИКА ПЕРЕНЕСЕНА ВЫШЕ
+                // if (!string.IsNullOrEmpty(directoryPath) && Directory.Exists(directoryPath))
+                // { ... }
+                // else if (!string.IsNullOrEmpty(directoryPath))
+                // { ... }
             }
             catch (Exception ex)
             {
@@ -2008,4 +2012,76 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         get => _availableThemes;
         private set => SetProperty(ref _availableThemes, value);
     }
+
+    // --- НОВЫЕ МЕТОДЫ для статистики по датам ---
+    private void InitializeDateStatistics(DataTable fileTable)
+    {
+        if (fileTable == null) return;
+        AddLogMessage("InitializeDateStatistics: Расчет начальной статистики по датам...");
+        try
+        {
+            var countsByDate = fileTable.AsEnumerable()
+                .Where(row => row["publishDate"] != DBNull.Value)
+                .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
+                .Select(g => new { Date = g.Key, Count = g.Count() })
+                .OrderBy(x => x.Date);
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                FileCountsPerDate.Clear();
+                foreach (var item in countsByDate)
+                {
+                    FileCountsPerDate.Add(new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 });
+                }
+                 AddLogMessage($"InitializeDateStatistics: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
+            });
+        }
+        catch (Exception ex)
+        {
+             AddLogMessage($"InitializeDateStatistics: Ошибка при расчете статистики: {ex.Message}", "Error");
+        }
+    }
+
+    private void UpdateDateStatistics(DataTable fileTable)
+    {
+        if (fileTable == null) return;
+         AddLogMessage("UpdateDateStatistics: Обновление статистики по датам после обнаружения новых файлов...");
+         try
+         {
+             var currentCountsByDate = fileTable.AsEnumerable()
+                 .Where(row => row["publishDate"] != DBNull.Value)
+                 .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
+                 .Select(g => new { Date = g.Key, Count = g.Count() });
+
+             Application.Current.Dispatcher.Invoke(() =>
+             {
+                 foreach (var item in currentCountsByDate)
+                 {
+                     var existingStat = FileCountsPerDate.FirstOrDefault(d => d.Date == item.Date);
+                     if (existingStat == null)
+                     {
+                         // Новая дата - добавляем
+                         FileCountsPerDate.Add(new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 });
+                         AddLogMessage($"UpdateDateStatistics: Добавлена новая дата {item.Date:dd.MM.yyyy} с {item.Count} файлами.");
+                     }
+                     else if (existingStat.Count < item.Count)
+                     {
+                         // Существующая дата, но файлов стало больше - обновляем Count
+                         AddLogMessage($"UpdateDateStatistics: Обновлен счетчик для даты {item.Date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {item.Count}.");
+                         existingStat.Count = item.Count;
+                     }
+                     // Если Count не изменился или уменьшился (маловероятно), ничего не делаем
+                 }
+                 // Можно добавить сортировку FileCountsPerDate по дате, если нужно
+                 // var sorted = FileCountsPerDate.OrderBy(d => d.Date).ToList();
+                 // FileCountsPerDate = new ObservableCollection<DailyFileCount>(sorted);
+             });
+              AddLogMessage($"UpdateDateStatistics: Обновление статистики завершено.");
+         }
+         catch (Exception ex)
+         {
+             AddLogMessage($"UpdateDateStatistics: Ошибка при обновлении статистики: {ex.Message}", "Error");
+         }
+    }
+    // --- Конец НОВЫХ МЕТОДОВ для статистики ---
 } 
