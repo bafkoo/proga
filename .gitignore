@@ -62,8 +62,16 @@
     *.zip
     *.rar
     *.7z
-DownloaderApp/.vs/DownloaderApp/FileContentIndex/b140795f-d909-499c-9dd7-b00107266cc4.vsidx
-DownloaderApp/.vs/DownloaderApp/FileContentIndex/6d1bb756-269c-42f1-a244-2971a094826d.vsidx
-DownloaderApp/.vs/DownloaderApp/FileContentIndex/91d5ce66-9424-4dd4-9ff0-b677e69a8c08.vsidx
-DownloaderApp/.vs/DownloaderApp/FileContentIndex/5e237760-6ac6-44a0-b4d1-0fac90bbfce4.vsidx
-DownloaderApp/.vs/DownloaderApp/FileContentIndex/2dbf6813-2299-49ac-a740-ab554c8c8121.vsidx
+
+    # Visual Studio Code cache/settings
+    .vscode/*
+    !.vscode/settings.json
+    !.vscode/tasks.json
+    !.vscode/launch.json
+    !.vscode/extensions.json
+    *.code-workspace
+
+    # Visual Studio cache/options directory
+    .vs/
+
+    # Rider
