@@ -1322,7 +1322,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             {
                                 try
                                 {
-                                    _archiveServiceForExtractedFiles = new ArchiveService(_iacConnectionString);
+                                    _archiveServiceForExtractedFiles = new ArchiveService(_serverOfficeConnectionString); // <-- ИЗМЕНЕНИЕ ЗДЕСЬ
                                     // Subscribe to the event before calling
                                     _archiveServiceForExtractedFiles.FileArchived += HandleExtractedFileArchived;
                                     
