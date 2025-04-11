@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Data;
 using Microsoft.Data.SqlClient;
 using System.IO;
 using System.Net.Http;
@@ -13,7 +12,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using FileDownloader.Infrastructure;
+// using FileDownloader.Infrastructure;
+using DownloaderApp.Infrastructure; // Corrected namespace for ArchiveService
 using Microsoft.Extensions.Configuration;
 using FluentFTP;
 using System.Net;
@@ -39,6 +39,7 @@ using System.IO.Compression; // <-- Для Zip (если понадобится 
 using System.Collections.Concurrent; // Для потокобезопасной коллекции
 using System.Text.RegularExpressions;
 using System.Windows.Threading; // Для DispatcherTimer
+using System.Data; // Added for DataTable and DataRow
 
 // --- Добавляем класс для хранения статистики по датам ---
 public class DailyFileCount : INotifyPropertyChanged // Реализуем интерфейс
@@ -454,6 +455,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     // --- Флаг завершения асинхронной инициализации ---
     private volatile bool _isInitialized = false;
+
+    private ArchiveService _archiveServiceForExtractedFiles; // Instance for handling extracted files
 
     static DownloaderViewModel()
     {
@@ -1278,45 +1281,207 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             // {
                             using (var archive = ArchiveFactory.Open(fileDocument))
                             {
-                                foreach (var entry in archive.Entries)
+                                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory)) // Process only files
                                 {
-                                    if (!entry.IsDirectory)
-                                    {
-                                        // Используем опции для перезаписи существующих файлов
-                                        entry.WriteToDirectory(extractionPath, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
-                                    }
+                                    // Ensure token cancellation check
+                                    if (token.IsCancellationRequested) throw new OperationCanceledException(token);
+                                    entry.WriteToDirectory(extractionPath, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
                                 }
                             }
                             // }, token); // Передаем токен отмены - УБРАНО
 
                             AddLogMessage($"Архив '{originalFileName}' успешно распакован в {extractionPath}");
 
-                            // ОПЦИОНАЛЬНО: Удалить исходный архив после успешной распаковки
-                            // Удаляем внешний if, оставляем только try-catch
-                            try
-                            {
-                                File.Delete(fileDocument);
-                                AddLogMessage($"Исходный архив '{originalFileName}' удален.");
-                            }
-                            catch (Exception deleteEx)
-                            {
-                                AddLogMessage($"Ошибка при удалении исходного архива '{originalFileName}': {deleteEx.Message}", "Error");
-                            }
-                        }
-                        catch (OperationCanceledException)
+                                                    // --- ВЫЗОВ ARCHIVE SERVICE ДЛЯ РАСПАКОВАННЫХ ФАЙЛОВ ---
+                        AddLogMessage($"Запуск архивации содержимого \'{originalFileName}\' из {extractionPath}");
+                        
+                        // Create DocumentMeta object for the archive context
+                        var metaForArchive = new FileDownloader.Models.DocumentMeta
                         {
-                            AddLogMessage($"Распаковка архива '{originalFileName}' отменена.", "Warning");
-                            // Подумать, нужно ли удалять частично распакованные файлы или папку
-                            throw; // Перебрасываем отмену дальше
+                            documentMetaPathID = documentMetaPathID, // From DataRow
+                            urlID = urlIdFromDb,             // From DataRow
+                            documentMetaID = documentMetaID,     // From DataRow
+                            processID = CurrentSettings.ProcessId, // From settings
+                            databaseName = databaseName          // From method argument
+                            // Populate other fields if needed
+                        };
+                        
+                        // Ensure IAC connection string is available
+                        if (string.IsNullOrEmpty(_iacConnectionString))
+                        {
+                            AddLogMessage("Ошибка: Строка подключения IAC не настроена. Невозможно заархивировать распакованные файлы.", "Error");
                         }
+                        else
+                        {
+                            string archiveDestPath = CurrentSettings.ArchiveDestinationPath;
+                            if (string.IsNullOrWhiteSpace(archiveDestPath))
+                            {
+                                AddLogMessage("Ошибка: Путь для архивации (ArchiveDestinationPath) не настроен. Невозможно заархивировать распакованные файлы.", "Error");
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    _archiveServiceForExtractedFiles = new ArchiveService(_iacConnectionString);
+                                    // Subscribe to the event before calling
+                                    _archiveServiceForExtractedFiles.FileArchived += HandleExtractedFileArchived;
+                                    
+                                    // Call ArchiveFileMove for the directory containing extracted files
+                                    _archiveServiceForExtractedFiles.ArchiveFileMove(extractionPath, archiveDestPath, metaForArchive);
+                                    
+                                    // Unsubscribe after the call is complete
+                                    _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
+                                    _archiveServiceForExtractedFiles = null; // Release instance
+                                    
+                                    AddLogMessage($"Архивация содержимого \'{originalFileName}\' завершена.", "Success");
+
+                                    // --- ОЧИСТКА ПОСЛЕ УСПЕШНОЙ АРХИВАЦИИ --- 
+                                    // Delete original archive
+                                    try
+                                    {
+                                        File.Delete(fileDocument);
+                                        AddLogMessage($"Исходный архив \'{originalFileName}\' удален после архивации содержимого.");
+                                    }
+                                    catch (Exception deleteEx)
+                                    {
+                                        AddLogMessage($"Ошибка при удалении исходного архива \'{originalFileName}\' после архивации: {deleteEx.Message}", "Error");
+                                    }
+
+                                    // Delete extraction directory
+                                    try
+                                    {
+                                        Directory.Delete(extractionPath, true); // Recursive delete
+                                        AddLogMessage($"Временная директория распаковки \'{extractionPath}\' удалена.");
+                                    }
+                                    catch (Exception deleteEx)
+                                    {
+                                        AddLogMessage($"Ошибка при удалении директории распаковки \'{extractionPath}\': {deleteEx.Message}", "Error");
+                                    }
+                                    // --- КОНЕЦ ОЧИСТКИ --- 
+                                }
+                                catch (Exception archiveEx)
+                                {
+                                    // Log error from ArchiveService
+                                    AddLogMessage($"Ошибка во время архивации содержимого \'{originalFileName}\': {archiveEx.Message}", "Error");
+                                    // Optionally re-throw or handle differently
+                                    // Ensure event handler is unsubscribed even on error
+                                    if (_archiveServiceForExtractedFiles != null)
+                                    {
+                                         _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
+                                        _archiveServiceForExtractedFiles = null;
+                                    }
+                                    // Decide if we should attempt cleanup on error
+                                }
+                            }
+                        }
+                        // --- КОНЕЦ ВЫЗОВА ARCHIVE SERVICE ---
+                        }
+                        catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
                         {
                             AddLogMessage($"Ошибка при распаковке архива '{originalFileName}': {ex.Message}", "Error");
-                            // Не прерываем основной процесс из-за ошибки распаковки, но логируем
+                            // Decide if we should proceed without archiving
                         }
+                        // --- КОНЕЦ БЛОКА РАСПАКОВКИ ---
                     }
-                    // --- КОНЕЦ: Распаковка архивов ---
+                    else // Not an archive, process normally
+                    {
+                        // --- Выгрузка на FTP (если srcID == 1) ---
+                        if (srcID == 1)
+                        {
+                             if (string.IsNullOrWhiteSpace(ftp) || string.IsNullOrWhiteSpace(fileNameFtp)) {
+                                  throw new InvalidOperationException($"Не указаны параметры FTP (ftp='{ftp}', fileNameFtp='{fileNameFtp}') для srcID=1, documentMetaID={documentMetaID}");
+                             }
+                            AddLogMessage($"Выгрузка на FTP: {fileDocument} -> {ftp} (Имя: {fileNameFtp})");
+                            try
+                            {
+                                await FtpUploadAsync(CurrentSettings, fileDocument, fileNameFtp, token, progress);
+                                AddLogMessage($"Файл '{fileNameFtp}' выгружен на FTP.");
+                            }
+                            catch (Exception ftpEx)
+                            {
+                                AddLogMessage($"Ошибка выгрузки на FTP для файла '{fileNameFtp}': {ftpEx.Message}");
+                                 throw; // Критичная ошибка, прерываем обработку файла
+                            }
+                        }
 
+                        // --- Запись метаданных в базу IAC ---
+                        AddLogMessage($"Запись метаданных в IAC для documentMetaID: {documentMetaID}");
+                        using (SqlConnection conBaseI = new SqlConnection(_serverOfficeConnectionString)) 
+                        {
+                             await conBaseI.OpenAsync(token);
+                             using (SqlCommand cmdInsert = new SqlCommand("documentMetaPathInsert", conBaseI) { CommandType = CommandType.StoredProcedure, CommandTimeout = 300 })
+                             {
+                                  cmdInsert.Parameters.Add("@databaseName", SqlDbType.VarChar, 50).Value = databaseName;
+                                  cmdInsert.Parameters.Add("@computerName", SqlDbType.VarChar, 50).Value = computerName;
+                                  cmdInsert.Parameters.Add("@directoryName", SqlDbType.VarChar, 50).Value = directoryName;
+                                  cmdInsert.Parameters.Add("@processID", SqlDbType.Int).Value = CurrentSettings.ProcessId;
+                                  cmdInsert.Parameters.Add("@themeID", SqlDbType.Int).Value = themeId;
+                                  cmdInsert.Parameters.Add("@year", SqlDbType.Int).Value = publishDate.Year;
+                                  cmdInsert.Parameters.Add("@month", SqlDbType.Int).Value = publishDate.Month;
+                                  cmdInsert.Parameters.Add("@day", SqlDbType.Int).Value = publishDate.Day;
+
+                                  if (databaseName == "fcsNotification" || databaseName == "contract" || databaseName == "purchaseNotice" || databaseName == "requestQuotation")
+                                  {
+                                      cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = urlIdFromDb?.ToString() ?? (object)DBNull.Value;
+                                      cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
+                                  }
+                                  else
+                                  {
+                                      cmdInsert.Parameters.Add("@urlIDText", SqlDbType.VarChar, 50).Value = DBNull.Value;
+                                      if (urlIdFromDb != null && int.TryParse(urlIdFromDb.ToString(), out int urlIdInt))
+                                          cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = urlIdInt;
+                                      else
+                                          cmdInsert.Parameters.Add("@urlID", SqlDbType.Int).Value = DBNull.Value;
+                                  }
+
+                                  cmdInsert.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
+                                  cmdInsert.Parameters.Add("@fileName", SqlDbType.VarChar, 250).Value = originalFileName;
+                                  cmdInsert.Parameters.Add("@suffixName", SqlDbType.VarChar, 50).Value = suffixName;
+                                  cmdInsert.Parameters.Add("@expName", SqlDbType.VarChar, 10).Value = expName;
+                                  cmdInsert.Parameters.Add("@docDescription", SqlDbType.VarChar, 250).Value = docDescription;
+                                  cmdInsert.Parameters.Add("@fileSize", SqlDbType.Decimal).Value = fileSize;
+                                  cmdInsert.Parameters.Add("@srcID", SqlDbType.Int).Value = srcID;
+                                  cmdInsert.Parameters.Add("@usrID", SqlDbType.Int).Value = CurrentSettings.UserId;
+                                  cmdInsert.Parameters.Add("@documentMetaPathID", SqlDbType.Int).Value = documentMetaPathID;
+
+                                  await cmdInsert.ExecuteNonQueryAsync(token);
+                                  AddLogMessage($"Метаданные для documentMetaID: {documentMetaID} записаны в IAC.");
+                             }
+                        }
+
+
+                        // --- Обновление флага в основной базе (для srcID 0 и 1) ---
+                        if (srcID == 0 || srcID == 1)
+                        {
+                             AddLogMessage($"Обновление флага для documentMetaID: {documentMetaID} в базе {databaseName}");
+                             using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
+                             {
+                                  await conBase.OpenAsync(token);
+                                  using (SqlCommand cmdUpdate = new SqlCommand("documentMetaUpdateFlag", conBase) { CommandType = CommandType.StoredProcedure })
+                                  {
+                                       cmdUpdate.Parameters.Add("@documentMetaID", SqlDbType.Int).Value = documentMetaID;
+                                       await cmdUpdate.ExecuteNonQueryAsync(token);
+                                       AddLogMessage($"Флаг для documentMetaID: {documentMetaID} обновлен.");
+                                  }
+                             }
+                        }
+
+                         // --- Удаление временного файла (для srcID == 1) ---
+                        if (srcID == 1 && File.Exists(fileDocument))
+                        {
+                             AddLogMessage($"Удаление временного файла после FTP: {fileDocument}");
+                             File.Delete(fileDocument);
+                        }
+
+                        // Обновляем информацию о текущем файле
+                        CurrentFileDetails = $"Файл: {originalFileName}\n" +
+                                           $"Размер: {fileSize} байт\n" +
+                                           $"Дата публикации: {publishDate:dd.MM.yyyy}\n" +
+                                           $"Описание: {docDescription}";
+                        _lastProcessedFileName = originalFileName; // Update last processed file name
+
+                    }
                 }
                 catch (OperationCanceledException) { throw; } // Просто перебрасываем отмену
                 catch (Exception webEx) // Ловит исключение из цикла или из блока выше
@@ -1329,7 +1494,6 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     }
                     throw; // Перебрасываем ошибку дальше
                 }
-
 
                 // --- Выгрузка на FTP (если srcID == 1) ---
                 if (srcID == 1)
@@ -1976,7 +2140,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             // Загрузка настроек приложения
             var appSettings = App.Configuration.GetSection("AppSettings").Get<ApplicationSettings>() ?? new ApplicationSettings();
             CurrentSettings = appSettings;
-            AddLogMessage($"Настройки загружены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс");
+            // Check if archive path is valid, provide default if not
+            if (string.IsNullOrWhiteSpace(CurrentSettings.ArchiveDestinationPath))
+            {
+                CurrentSettings.ArchiveDestinationPath = "C:\\FileArchives"; // Default value
+                AddLogMessage($"Путь для архивации не указан или некорректен в appsettings.json, используется путь по умолчанию: {CurrentSettings.ArchiveDestinationPath}", "Warning");
+            }
+            AddLogMessage($"Настройки загружены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс, Путь архива: {CurrentSettings.ArchiveDestinationPath}");
 
             // Загрузка настроек FTP
             var ftpSettings = App.Configuration.GetSection("FtpSettings").Get<FtpSettings>() ?? new FtpSettings();
@@ -2419,5 +2589,15 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
             );
         }
+    }
+
+    // Event handler for files archived by ArchiveService
+    private void HandleExtractedFileArchived(object sender, FileArchivedEventArgs e)
+    {
+        // Run on UI thread if necessary, but logging can often be done directly
+        // Application.Current.Dispatcher.Invoke(() => 
+        // {
+                AddLogMessage($"[Архивация содержимого] Файл '{Path.GetFileName(e.OriginalPath)}' зарегистрирован и перемещен в '{e.NewPath}' как '{e.NewFileName}'. MetaID: {e.DocumentMetadata?.documentMetaID}", "Success");
+        // });
     }
 } 

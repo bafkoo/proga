@@ -10,6 +10,17 @@
 
 using FileDownloader;
 using FileDownloader.Converters;
+using MahApps.Metro;
+using MahApps.Metro.Accessibility;
+using MahApps.Metro.Actions;
+using MahApps.Metro.Automation.Peers;
+using MahApps.Metro.Behaviors;
+using MahApps.Metro.Controls;
+using MahApps.Metro.Controls.Dialogs;
+using MahApps.Metro.Converters;
+using MahApps.Metro.Markup;
+using MahApps.Metro.Theming;
+using MahApps.Metro.ValueBoxes;
 using System;
 using System.Diagnostics;
 using System.Windows;
@@ -53,7 +64,7 @@ namespace FileDownloader {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/FileDownloader;V1.0.0.0;component/app.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/FileDownloader;component/app.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\App.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

@@ -1,0 +1,8 @@
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.csproj.AssemblyReference.cache
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\MainWindow.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\SettingsWindow.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\App.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_Content.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\GeneratedInternalTypeHelper.g.cs
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_MarkupCompile.cache
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_MarkupCompile.lref

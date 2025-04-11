@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace FileDownloader.Models;
 
 // Простой класс для хранения настроек, используемых в UI
@@ -6,7 +8,10 @@ public class ApplicationSettings
     public int UserId { get; set; }
     public int ProcessId { get; set; }
     public int SleepIntervalMilliseconds { get; set; }
-    public int MaxParallelDownloads { get; set; } = 4; // Значение по умолчанию
+    public int MaxParallelDownloads { get; set; } = 2; // Default value
+
+    // Added for archive destination
+    public string ArchiveDestinationPath { get; set; } = "C:\\FileArchives"; // Default value
 
     // Настройки FTP (можно добавить больше, если нужно)
     public string FtpHost { get; set; }
@@ -26,6 +31,7 @@ public class ApplicationSettings
         ProcessId = source.ProcessId;
         SleepIntervalMilliseconds = source.SleepIntervalMilliseconds;
         MaxParallelDownloads = source.MaxParallelDownloads;
+        ArchiveDestinationPath = source.ArchiveDestinationPath;
         FtpHost = source.FtpHost;
         FtpPort = source.FtpPort;
         FtpUsername = source.FtpUsername;

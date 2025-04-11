@@ -3,7 +3,7 @@ using System.Data;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using System.IO;
-using FileDownloader.Infrastructure; // Исправляем using
+using DownloaderApp.Infrastructure; // Added for FileLogger
 using System.Windows.Threading; // Для DispatcherUnhandledExceptionEventArgs
 using System.Linq; // Добавлено для очистки логов
 using Microsoft.Extensions.DependencyInjection;
