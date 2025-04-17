@@ -73,5 +73,10 @@
 
     # Visual Studio cache/options directory
     .vs/
-
+    .vs/proga/
     # Rider
+
+    DownloaderApp/.vs/
+
+    # Cursor specific
+    .cursor/
