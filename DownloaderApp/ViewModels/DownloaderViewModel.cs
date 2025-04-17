@@ -767,12 +767,27 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         if (logsToAdd.Count > 0)
         {
-            int removeCount = LogMessages.Count + logsToAdd.Count - 1000;
-            if (removeCount > 0)
+            const int maxLogMessages = 1000;
+            int currentCount = LogMessages.Count;
+            int itemsToAddCount = logsToAdd.Count;
+            int itemsToRemove = currentCount + itemsToAddCount - maxLogMessages;
+
+            if (itemsToRemove > 0)
             {
-                for (int i = 0; i < removeCount; i++)
+                // Убедимся, что не пытаемся удалить больше, чем есть
+                itemsToRemove = Math.Min(itemsToRemove, currentCount);
+                for (int i = 0; i < itemsToRemove; i++)
                 {
-                    LogMessages.RemoveAt(0);
+                    // Дополнительная проверка на случай, если коллекция изменилась
+                    // (хотя при вызове через Dispatcher это маловероятно)
+                    if (LogMessages.Count > 0)
+                    {
+                        LogMessages.RemoveAt(0); 
+                    }
+                    else
+                    {
+                        break; // Выходим, если коллекция неожиданно опустела
+                    }
                 }
             }
 
