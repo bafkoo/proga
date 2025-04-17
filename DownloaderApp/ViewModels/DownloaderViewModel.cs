@@ -1619,7 +1619,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             // Уведомляем UI поток об изменении состояния команды StartDownload
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                // Исправляем тип команды на AsyncRelayCommand
+                (StartDownloadCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
             });
         }
         catch (Exception ex)
