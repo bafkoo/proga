@@ -51,7 +51,6 @@ namespace DownloaderApp.Infrastructure
     {
         private readonly string _iacConnectionString;
         private const int MAX_RECURSION_DEPTH = 10; // Максимальная глубина рекурсии для обработки вложенных папок
-        private int _currentRecursionDepth = 0; // Текущая глубина рекурсии
 
         // Constructor accepts the IAC connection string
         public ArchiveService(string iacConnectionString)
