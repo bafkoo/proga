@@ -1260,12 +1260,30 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                     // --- ДОБАВЛЕНО: Распаковка архивов ---
                     string extension = Path.GetExtension(fileDocument).ToLowerInvariant();
-                    if (extension == ".zip" || extension == ".rar")
+                    // Расширяем список поддерживаемых форматов архивов
+                    if (extension == ".zip" || extension == ".rar" || extension == ".7z" || extension == ".tar" || extension == ".gz" || extension == ".bz2" || extension == ".tar.gz" || extension == ".tar.bz2")
                     {
                         string extractionPath = Path.Combine(Path.GetDirectoryName(fileDocument), Path.GetFileNameWithoutExtension(fileDocument));
                         AddLogMessage($"Обнаружен архив '{originalFileName}'. Попытка распаковки в: {extractionPath}");
                         try
                         {
+                            // Проверяем, не является ли путь системным
+                            string[] protectedPaths = { "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)" };
+                            foreach (var path in protectedPaths)
+                            {
+                                if (extractionPath.StartsWith(path, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    throw new UnauthorizedAccessException($"Распаковка в системную директорию {extractionPath} запрещена");
+                                }
+                            }
+
+                            // Проверяем свободное место на диске (примерно в 2 раза больше размера архива)
+                            var driveInfo = new DriveInfo(Path.GetPathRoot(extractionPath));
+                            if (driveInfo.IsReady && driveInfo.AvailableFreeSpace < fileSize * 2)
+                            {
+                                AddLogMessage($"Предупреждение: На диске может быть недостаточно свободного места для распаковки. Доступно: {FormatBytes(driveInfo.AvailableFreeSpace)}", "Warning");
+                            }
+
                             // Создаем папку для распаковки, если не существует
                             if (!Directory.Exists(extractionPath))
                             {
@@ -1277,110 +1295,193 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                                 AddLogMessage($"Директория для распаковки уже существует: {extractionPath}");
                             }
 
-                            // await Task.Run(() => // Выполняем распаковку в фоновом потоке - УБРАНО, ТАК КАК АРХИВЫ НЕБОЛЬШИЕ
-                            // {
-                            using (var archive = ArchiveFactory.Open(fileDocument))
+                            // Используем SharpCompress для обработки архива
+                            using (var archive = SharpCompress.Archives.ArchiveFactory.Open(fileDocument))
                             {
-                                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory)) // Process only files
+                                var options = new SharpCompress.Common.ExtractionOptions
                                 {
-                                    // Ensure token cancellation check
-                                    if (token.IsCancellationRequested) throw new OperationCanceledException(token);
-                                    entry.WriteToDirectory(extractionPath, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
+                                    ExtractFullPath = true,
+                                    Overwrite = true,
+                                    PreserveFileTime = true
+                                };
+
+                                // Проверка на пустой архив
+                                if (!archive.Entries.Any())
+                                {
+                                    AddLogMessage($"Предупреждение: Архив '{originalFileName}' не содержит файлов", "Warning");
                                 }
+
+                                // Предварительная проверка архива
+                                foreach (var entry in archive.Entries)
+                                {
+                                    // Проверка на подозрительные имена файлов или пути
+                                    if (entry.Key.Contains("..") || entry.Key.StartsWith("/") || entry.Key.StartsWith("\\"))
+                                    {
+                                        AddLogMessage($"Предупреждение: Архив содержит потенциально опасный путь: {entry.Key}", "Warning");
+                                    }
+
+                                    // Обнаружение и уведомление о вложенных архивах
+                                    string entryExt = Path.GetExtension(entry.Key).ToLowerInvariant();
+                                    if (entryExt == ".zip" || entryExt == ".rar" || entryExt == ".7z")
+                                    {
+                                        AddLogMessage($"Информация: Обнаружен вложенный архив в архиве: {entry.Key}", "Info");
+                                    }
+
+                                    // Проверка токена отмены
+                                    if (token.IsCancellationRequested)
+                                    {
+                                        throw new OperationCanceledException(token);
+                                    }
+                                }
+
+                                // Распаковка только файлов (не директорий)
+                                int extractedFilesCount = 0;
+                                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                                {
+                                    // Проверка токена отмены
+                                    if (token.IsCancellationRequested)
+                                    {
+                                        throw new OperationCanceledException(token);
+                                    }
+
+                                    try
+                                    {
+                                        entry.WriteToDirectory(extractionPath, options);
+                                        extractedFilesCount++;
+                                    }
+                                    catch (Exception exEntry)
+                                    {
+                                        AddLogMessage($"Ошибка при распаковке файла {entry.Key}: {exEntry.Message}", "Warning");
+                                        // Продолжаем с другими файлами
+                                    }
+                                }
+                                
+                                AddLogMessage($"Архив '{originalFileName}' успешно распакован в {extractionPath}. Извлечено файлов: {extractedFilesCount}");
                             }
-                            // }, token); // Передаем токен отмены - УБРАНО
 
-                            AddLogMessage($"Архив '{originalFileName}' успешно распакован в {extractionPath}");
+                            // Обрабатываем вложенные архивы, если они есть
+                            await ScanAndExtractNestedArchivesAsync(extractionPath, token);
 
-                                                    // --- ВЫЗОВ ARCHIVE SERVICE ДЛЯ РАСПАКОВАННЫХ ФАЙЛОВ ---
-                        AddLogMessage($"Запуск архивации содержимого \'{originalFileName}\' из {extractionPath}");
-                        
-                        // Create DocumentMeta object for the archive context
-                        var metaForArchive = new FileDownloader.Models.DocumentMeta
-                        {
-                            documentMetaPathID = documentMetaPathID, // From DataRow
-                            urlID = urlIdFromDb,             // From DataRow
-                            documentMetaID = documentMetaID,     // From DataRow
-                            processID = CurrentSettings.ProcessId, // From settings
-                            databaseName = databaseName          // From method argument
-                            // Populate other fields if needed
-                        };
-                        
-                        // Ensure IAC connection string is available
-                        if (string.IsNullOrEmpty(_iacConnectionString))
-                        {
-                            AddLogMessage("Ошибка: Строка подключения IAC не настроена. Невозможно заархивировать распакованные файлы.", "Error");
-                        }
-                        else
-                        {
-                            string archiveDestPath = CurrentSettings.ArchiveDestinationPath;
-                            if (string.IsNullOrWhiteSpace(archiveDestPath))
+                            // --- ВЫЗОВ ARCHIVE SERVICE ДЛЯ РАСПАКОВАННЫХ ФАЙЛОВ ---
+                            AddLogMessage($"Запуск архивации содержимого \'{originalFileName}\' из {extractionPath}");
+                            
+                            // Create DocumentMeta object for the archive context
+                            var metaForArchive = new FileDownloader.Models.DocumentMeta
                             {
-                                AddLogMessage("Ошибка: Путь для архивации (ArchiveDestinationPath) не настроен. Невозможно заархивировать распакованные файлы.", "Error");
+                                documentMetaPathID = documentMetaPathID, // From DataRow
+                                urlID = urlIdFromDb,             // From DataRow
+                                documentMetaID = documentMetaID,     // From DataRow
+                                processID = CurrentSettings.ProcessId, // From settings
+                                databaseName = databaseName          // From method argument
+                                // Populate other fields if needed
+                            };
+                            
+                            // Ensure IAC connection string is available
+                            if (string.IsNullOrEmpty(_iacConnectionString))
+                            {
+                                AddLogMessage("Ошибка: Строка подключения IAC не настроена. Невозможно заархивировать распакованные файлы.", "Error");
                             }
                             else
                             {
-                                try
+                                string archiveDestPath = CurrentSettings.ArchiveDestinationPath;
+                                if (string.IsNullOrWhiteSpace(archiveDestPath))
                                 {
-                                    _archiveServiceForExtractedFiles = new ArchiveService(_serverOfficeConnectionString); // <-- ИЗМЕНЕНИЕ ЗДЕСЬ
-                                    // Subscribe to the event before calling
-                                    _archiveServiceForExtractedFiles.FileArchived += HandleExtractedFileArchived;
-                                    
-                                    // Call ArchiveFileMove for the directory containing extracted files
-                                    _archiveServiceForExtractedFiles.ArchiveFileMove(extractionPath, archiveDestPath, metaForArchive);
-                                    
-                                    // Unsubscribe after the call is complete
-                                    _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
-                                    _archiveServiceForExtractedFiles = null; // Release instance
-                                    
-                                    AddLogMessage($"Архивация содержимого \'{originalFileName}\' завершена.", "Success");
-
-                                    // --- ОЧИСТКА ПОСЛЕ УСПЕШНОЙ АРХИВАЦИИ --- 
-                                    // Delete original archive
-                                    try
-                                    {
-                                        File.Delete(fileDocument);
-                                        AddLogMessage($"Исходный архив \'{originalFileName}\' удален после архивации содержимого.");
-                                    }
-                                    catch (Exception deleteEx)
-                                    {
-                                        AddLogMessage($"Ошибка при удалении исходного архива \'{originalFileName}\' после архивации: {deleteEx.Message}", "Error");
-                                    }
-
-                                    // Delete extraction directory
-                                    try
-                                    {
-                                        Directory.Delete(extractionPath, true); // Recursive delete
-                                        AddLogMessage($"Временная директория распаковки \'{extractionPath}\' удалена.");
-                                    }
-                                    catch (Exception deleteEx)
-                                    {
-                                        AddLogMessage($"Ошибка при удалении директории распаковки \'{extractionPath}\': {deleteEx.Message}", "Error");
-                                    }
-                                    // --- КОНЕЦ ОЧИСТКИ --- 
+                                    AddLogMessage("Ошибка: Путь для архивации (ArchiveDestinationPath) не настроен. Невозможно заархивировать распакованные файлы.", "Error");
                                 }
-                                catch (Exception archiveEx)
+                                else
                                 {
-                                    // Log error from ArchiveService
-                                    AddLogMessage($"Ошибка во время архивации содержимого \'{originalFileName}\': {archiveEx.Message}", "Error");
-                                    // Optionally re-throw or handle differently
-                                    // Ensure event handler is unsubscribed even on error
-                                    if (_archiveServiceForExtractedFiles != null)
+                                    bool archiveServiceSuccess = false;
+                                    try
                                     {
-                                         _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
-                                        _archiveServiceForExtractedFiles = null;
+                                        _archiveServiceForExtractedFiles = new ArchiveService(_serverOfficeConnectionString);
+                                        
+                                        // Subscribe to the event before calling
+                                        _archiveServiceForExtractedFiles.FileArchived += HandleExtractedFileArchived;
+                                        
+                                        // Call ArchiveFileMove for the directory containing extracted files
+                                        _archiveServiceForExtractedFiles.ArchiveFileMove(extractionPath, archiveDestPath, metaForArchive);
+                                        
+                                        // Unsubscribe after the call is complete
+                                        _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
+                                        _archiveServiceForExtractedFiles = null; // Release instance
+                                        
+                                        AddLogMessage($"Архивация содержимого \'{originalFileName}\' завершена.", "Success");
+                                        archiveServiceSuccess = true;
+
+                                        // --- ОЧИСТКА ПОСЛЕ УСПЕШНОЙ АРХИВАЦИИ --- 
+                                        // Delete original archive
+                                        try
+                                        {
+                                            File.Delete(fileDocument);
+                                            AddLogMessage($"Исходный архив \'{originalFileName}\' удален после архивации содержимого.");
+                                        }
+                                        catch (Exception deleteEx)
+                                        {
+                                            AddLogMessage($"Ошибка при удалении исходного архива \'{originalFileName}\' после архивации: {deleteEx.Message}", "Error");
+                                        }
+
+                                        // Delete extraction directory
+                                        try
+                                        {
+                                            Directory.Delete(extractionPath, true); // Recursive delete
+                                            AddLogMessage($"Временная директория распаковки \'{extractionPath}\' удалена.");
+                                        }
+                                        catch (Exception deleteEx)
+                                        {
+                                            AddLogMessage($"Ошибка при удалении директории распаковки \'{extractionPath}\': {deleteEx.Message}", "Error");
+                                        }
+                                        // --- КОНЕЦ ОЧИСТКИ --- 
                                     }
-                                    // Decide if we should attempt cleanup on error
+                                    catch (Exception archiveEx)
+                                    {
+                                        // Log error from ArchiveService
+                                        AddLogMessage($"Ошибка во время архивации содержимого \'{originalFileName}\': {archiveEx.Message}", "Error");
+                                        
+                                        // Ensure event handler is unsubscribed even on error
+                                        if (_archiveServiceForExtractedFiles != null)
+                                        {
+                                            _archiveServiceForExtractedFiles.FileArchived -= HandleExtractedFileArchived;
+                                            _archiveServiceForExtractedFiles = null;
+                                        }
+
+                                        // Если архивация не удалась, спрашиваем, хотим ли мы очистить временные файлы
+                                        if (!archiveServiceSuccess)
+                                        {
+                                            // TODO: Можно добавить диалог с вопросом об удалении временных файлов
+                                            AddLogMessage("Временная директория распаковки оставлена из-за ошибки архивации.", "Warning");
+                                        }
+                                    }
                                 }
                             }
+                            // --- КОНЕЦ ВЫЗОВА ARCHIVE SERVICE ---
                         }
-                        // --- КОНЕЦ ВЫЗОВА ARCHIVE SERVICE ---
+                        catch (OperationCanceledException) 
+                        { 
+                            AddLogMessage($"Распаковка архива '{originalFileName}' отменена пользователем.", "Warning");
+                            throw; 
                         }
-                        catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
                         {
                             AddLogMessage($"Ошибка при распаковке архива '{originalFileName}': {ex.Message}", "Error");
-                            // Decide if we should proceed without archiving
+                            
+                            // Очистка временных файлов при ошибке
+                            try
+                            {
+                                if (Directory.Exists(extractionPath))
+                                {
+                                    Directory.Delete(extractionPath, true);
+                                    AddLogMessage($"Временная директория распаковки '{extractionPath}' удалена после ошибки.");
+                                }
+                            }
+                            catch(Exception cleanupEx)
+                            {
+                                AddLogMessage($"Ошибка при очистке временной директории: {cleanupEx.Message}", "Error");
+                            }
+                            
+                            if (!IgnoreDownloadErrors)
+                            {
+                                throw; // Прерываем обработку файла при ошибке, если не установлен флаг игнорирования
+                            }
                         }
                         // --- КОНЕЦ БЛОКА РАСПАКОВКИ ---
                     }
@@ -2599,5 +2700,115 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         // {
                 AddLogMessage($"[Архивация содержимого] Файл '{Path.GetFileName(e.OriginalPath)}' зарегистрирован и перемещен в '{e.NewPath}' как '{e.NewFileName}'. MetaID: {e.DocumentMetadata?.documentMetaID}", "Success");
         // });
+    }
+
+    // Метод для обработки вложенных архивов
+    private async Task ProcessNestedArchiveAsync(string archivePath, string extractionPath, CancellationToken token)
+    {
+        // Проверки пути и токена отмены
+        if (string.IsNullOrEmpty(archivePath) || string.IsNullOrEmpty(extractionPath) || !File.Exists(archivePath))
+        {
+            AddLogMessage($"Ошибка: Некорректные параметры для обработки вложенного архива. Путь: {archivePath}", "Error");
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        string nestedExtractPath = Path.Combine(extractionPath, Path.GetFileNameWithoutExtension(archivePath));
+        AddLogMessage($"Обработка вложенного архива: {Path.GetFileName(archivePath)} -> {nestedExtractPath}");
+
+        try
+        {
+            // Создаем отдельную директорию для вложенного архива
+            if (!Directory.Exists(nestedExtractPath))
+            {
+                Directory.CreateDirectory(nestedExtractPath);
+            }
+
+            // Распаковываем вложенный архив
+            using (var archive = SharpCompress.Archives.ArchiveFactory.Open(archivePath))
+            {
+                var options = new SharpCompress.Common.ExtractionOptions
+                {
+                    ExtractFullPath = true,
+                    Overwrite = true,
+                    PreserveFileTime = true
+                };
+
+                int extractedFilesCount = 0;
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    try
+                    {
+                        entry.WriteToDirectory(nestedExtractPath, options);
+                        extractedFilesCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLogMessage($"Ошибка при распаковке файла {entry.Key} из вложенного архива: {ex.Message}", "Warning");
+                    }
+                }
+
+                AddLogMessage($"Вложенный архив распакован. Извлечено файлов: {extractedFilesCount}");
+            }
+
+            // Удаляем исходный вложенный архив, так как его содержимое распаковано
+            File.Delete(archivePath);
+            AddLogMessage($"Вложенный архив {Path.GetFileName(archivePath)} удален после распаковки");
+        }
+        catch (Exception ex)
+        {
+            AddLogMessage($"Ошибка при обработке вложенного архива {Path.GetFileName(archivePath)}: {ex.Message}", "Error");
+        }
+    }
+
+    // Метод для сканирования и рекурсивной распаковки вложенных архивов
+    private async Task ScanAndExtractNestedArchivesAsync(string rootExtractPath, CancellationToken token, int maxDepth = 2, int currentDepth = 0)
+    {
+        if (currentDepth >= maxDepth || token.IsCancellationRequested)
+        {
+            if (currentDepth >= maxDepth)
+            {
+                AddLogMessage($"Достигнута максимальная глубина рекурсии ({maxDepth}) для распаковки вложенных архивов", "Warning");
+            }
+            return;
+        }
+
+        try
+        {
+            // Ищем все архивы в директории
+            var archiveExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2" };
+            var nestedArchives = Directory.GetFiles(rootExtractPath, "*.*", SearchOption.AllDirectories)
+                                         .Where(f => archiveExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                                         .ToList();
+
+            if (!nestedArchives.Any())
+            {
+                return; // Нет вложенных архивов
+            }
+
+            AddLogMessage($"Найдено вложенных архивов: {nestedArchives.Count} (глубина {currentDepth + 1}/{maxDepth})");
+
+            // Обрабатываем каждый найденный архив
+            foreach (var archivePath in nestedArchives)
+            {
+                if (token.IsCancellationRequested) break;
+
+                string parentDir = Path.GetDirectoryName(archivePath);
+                await ProcessNestedArchiveAsync(archivePath, parentDir, token);
+            }
+
+            // Рекурсивно сканируем распакованные директории на предмет новых архивов
+            await ScanAndExtractNestedArchivesAsync(rootExtractPath, token, maxDepth, currentDepth + 1);
+        }
+        catch (Exception ex)
+        {
+            AddLogMessage($"Ошибка при сканировании вложенных архивов: {ex.Message}", "Error");
+        }
     }
 } 
