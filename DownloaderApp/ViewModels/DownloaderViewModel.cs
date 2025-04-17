@@ -138,8 +138,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             if (SetProperty(ref _selectedDatabase, value))
             {
-                LoadAvailableThemes(); 
-                 if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
+                AddLogMessage($"SelectedDatabase изменена на: {(value != null ? value.DisplayName : "NULL")}", "Info");
+                LoadAvailableThemes();
+                if (StartDownloadCommand is AsyncRelayCommand rc)
+                {
+                    rc.NotifyCanExecuteChanged();
+                    AddLogMessage("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedDatabase", "Info");
+                }
             }
         }
     }
@@ -148,11 +153,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     public ThemeInfo SelectedTheme
     {
         get => _selectedTheme;
-        set 
+        set
         {
             if (SetProperty(ref _selectedTheme, value))
             {
-                 if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
+                AddLogMessage($"SelectedTheme изменена на: {(value != null ? value.Name : "NULL")}", "Info");
+                if (StartDownloadCommand is AsyncRelayCommand rc)
+                {
+                    rc.NotifyCanExecuteChanged();
+                    AddLogMessage("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedTheme", "Info");
+                }
             }
         }
     }
@@ -404,6 +414,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     {
         try
         {
+            AddLogMessage("=== СТАРТ КОНСТРУКТОРА ===", "Info");
             // Инициализация служб
             _logger = LogManager.GetCurrentClassLogger();
             _configurationService = new ConfigurationService();
@@ -413,6 +424,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             // Загружаем конфигурацию СНАЧАЛА, чтобы получить строки подключения
             LoadConfigurationAndSettings();
             FileLogger.Log("Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен");
+            AddLogMessage("Конфигурация загружена", "Info");
 
             // ТЕПЕРЬ инициализируем DatabaseService с загруженной строкой подключения
             if (string.IsNullOrEmpty(_baseConnectionString))
@@ -423,24 +435,28 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             // Инициализация команд
             StartDownloadCommand = new AsyncRelayCommand(StartDownloadAsync, CanStartDownload);
+            AddLogMessage($"StartDownloadCommand создана как {StartDownloadCommand.GetType().FullName}", "Info");
+            
             CancelDownloadCommand = new RelayCommand(CancelDownload, CanCancelDownload);
             OpenSettingsCommand = new RelayCommand(OpenSettingsWindow);
             ClearLogCommand = new RelayCommand(ClearLog, CanClearLog);
             CopyLogToClipboardCommand = new RelayCommand(CopyLogToClipboard, CanCopyLog);
             OpenLogDirectoryCommand = new RelayCommand(OpenLogDirectory);
-            FileLogger.Log("Конструктор DownloaderViewModel: Команды инициализированы");
+            AddLogMessage("Команды инициализированы", "Info");
 
             StatusMessage = "Инициализация...";
             FileLogger.Log("Конструктор DownloaderViewModel: Завершен");
 
             InitializeUiUpdateTimer();
             InitializeLogFilterTypes();
+            AddLogMessage("Таймеры и фильтры инициализированы", "Info");
 
             // Запускаем асинхронную инициализацию
             _ = InitializeAsync();
 
             // Инициализация коллекций
             PopulateThemeSelectors(); // Заполняем списки тем
+            AddLogMessage("=== УСТАНОВКА ТЕМ ПО УМОЛЧАНИЮ ===", "Info");
             // Устанавливаем значения по умолчанию из настроек или первые доступные
             SelectedBaseUiTheme = AvailableBaseUiThemes.Contains(CurrentSettings.BaseTheme)
                                     ? CurrentSettings.BaseTheme
@@ -448,10 +464,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             SelectedAccentUiColor = AvailableAccentUiColors.Contains(CurrentSettings.AccentColor)
                                     ? CurrentSettings.AccentColor
                                     : AvailableAccentUiColors.FirstOrDefault() ?? "Blue"; // Значение по умолчанию, если список пуст
+            AddLogMessage($"Установлены темы UI: {SelectedBaseUiTheme}.{SelectedAccentUiColor}", "Info");
+            AddLogMessage("=== КОНЕЦ КОНСТРУКТОРА ===", "Info");
         }
         catch (Exception ex)
         {
             StatusMessage = "Ошибка инициализации";
+            AddLogMessage($"Критическая ошибка в конструкторе: {ex.Message}", "Error");
             FileLogger.Log($"Критическая ошибка в конструкторе DownloaderViewModel: {ex}");
         }
     }
@@ -468,7 +487,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         _cancellationTokenSource = new CancellationTokenSource();
         var token = _cancellationTokenSource.Token;
         IsDownloading = true;
-        (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (StartDownloadCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
         (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
         (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
 
@@ -684,7 +703,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
-            (StartDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (StartDownloadCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
             (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
@@ -857,29 +876,37 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private void UpdateFilteredLogMessages()
     {
-        // Этот метод вызывается из UpdateUiFromTimerTick в UI потоке
+        try 
+        {
+            // Этот метод вызывается из UpdateUiFromTimerTick в UI потоке
+            if (LogMessages == null)
+            {
+                AddLogMessage("UpdateFilteredLogMessages: LogMessages is null!", "Error");
+                return;
+            }
 
-        IEnumerable<LogMessage> messagesToShow;
-        if (SelectedLogFilterType == null || SelectedLogFilterType.Type == "All")
-        {
-            messagesToShow = LogMessages; // Показываем все сообщения
-        }
-        else
-        {
-            messagesToShow = LogMessages.Where(m => m.Type == SelectedLogFilterType.Type);
-        }
+            IEnumerable<LogMessage> messagesToShow;
+            if (SelectedLogFilterType == null || SelectedLogFilterType.Type == "All")
+            {
+                messagesToShow = LogMessages.ToList(); // Создаем копию
+            }
+            else
+            {
+                messagesToShow = LogMessages.Where(m => m.Type == SelectedLogFilterType.Type).ToList();
+            }
 
-        // Оптимизация: Очищаем существующую коллекцию и добавляем элементы
-        // вместо создания новой коллекции каждый раз.
-        _filteredLogMessages.Clear();
-        foreach (var message in messagesToShow)
-        {
-            _filteredLogMessages.Add(message);
+            // Оптимизация: Очищаем существующую коллекцию и добавляем элементы
+            _filteredLogMessages.Clear();
+            foreach (var message in messagesToShow)
+            {
+                _filteredLogMessages.Add(message);
+            }
         }
-        // Уведомление об изменении коллекции (если Clear/Add не делают это автоматически)
-        // Для стандартной ObservableCollection это не нужно, но если используется другая реализация,
-        // может понадобиться вызвать OnPropertyChanged(nameof(FilteredLogMessages));
-        // В данном случае, предполагаем, что Clear/Add достаточно для обновления UI.
+        catch (Exception ex)
+        {
+            // Логируем ошибку в файл, так как логи UI могут не работать
+            FileLogger.Log($"Ошибка в UpdateFilteredLogMessages: {ex}");
+        }
     }
 
     private void InitializeLogFilterTypes()
@@ -1613,14 +1640,35 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             await Task.WhenAll(dbLoadTask, themeLoadTask);
 
             _isInitialized = true;
+            AddLogMessage($"_isInitialized установлен в {_isInitialized}", "Info");
+
+            // Устанавливаем значения по умолчанию, если они не выбраны
+            if (SelectedDatabase == null && AvailableDatabases.Any())
+            {
+                SelectedDatabase = AvailableDatabases.First();
+                AddLogMessage($"База данных по умолчанию установлена: {SelectedDatabase.DisplayName}", "Info");
+            }
+            if (SelectedTheme == null && AvailableThemes.Any())
+            {
+                SelectedTheme = AvailableThemes.First();
+                 AddLogMessage($"Тема по умолчанию установлена: {SelectedTheme.Name}", "Info");
+            }
+
             StatusMessage = "Готов";
             AddLogMessage("Асинхронная инициализация успешно завершена.", "Success");
 
             // Уведомляем UI поток об изменении состояния команды StartDownload
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                // Исправляем тип команды на AsyncRelayCommand
-                (StartDownloadCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                if (StartDownloadCommand is AsyncRelayCommand rc)
+                {
+                    rc.NotifyCanExecuteChanged();
+                    AddLogMessage("NotifyCanExecuteChanged вызван для StartDownloadCommand из InitializeAsync", "Info");
+                }
+                else
+                {
+                    AddLogMessage("ОШИБКА: StartDownloadCommand не является AsyncRelayCommand!", "Error");
+                }
             });
         }
         catch (Exception ex)
@@ -1660,7 +1708,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     // Добавьте другие проверки при необходимости
             }
             // Уведомляем команду о возможном изменении состояния CanExecute
-            if (StartDownloadCommand is RelayCommand rc) rc.NotifyCanExecuteChanged();
+            if (StartDownloadCommand is AsyncRelayCommand rc) rc.NotifyCanExecuteChanged(); // ИЗМЕНЕНО: AsyncRelayCommand
             return error;
         }
     }
@@ -1669,9 +1717,20 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     // --- Методы для команд ---
     private bool CanStartDownload()
     {
-        // Можно запускать, если не идет загрузка, инициализация завершена,
-        // выбрана база данных и выбрана тема.
-        return !IsDownloading && _isInitialized && SelectedDatabase != null && SelectedTheme != null;
+        bool notDownloading = !IsDownloading;
+        bool isInit = _isInitialized;
+        bool hasDb = SelectedDatabase != null;
+        bool hasTheme = SelectedTheme != null;
+        bool canStart = notDownloading && isInit && hasDb && hasTheme;
+
+        AddLogMessage($"CanStartDownload проверка:" +
+            $"\n - !IsDownloading: {notDownloading}" +
+            $"\n - _isInitialized: {isInit}" +
+            $"\n - SelectedDatabase: {(hasDb ? SelectedDatabase.DisplayName : "NULL")}" +
+            $"\n - SelectedTheme: {(hasTheme ? SelectedTheme.Name : "NULL")}" +
+            $"\n - ИТОГ: {canStart}", "Info");
+
+        return canStart;
     }
 
     private bool CanCancelDownload()
