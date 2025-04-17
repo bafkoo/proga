@@ -1082,6 +1082,19 @@
           "Microsoft.WindowsDesktop.App.WPF"
         ]
       },
+      "NLog/5.4.0": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/NLog.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/NLog.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Serilog/4.2.0": {
         "type": "package",
         "compile": {
@@ -3001,6 +3014,30 @@
         "tools/Install.ps1"
       ]
     },
+    "NLog/5.4.0": {
+      "sha512": "LwMcGSW3soF3/SL68rlJN3Eh3ktrAPycC3zZR/07OYBPraZUu0bygEC7kIN10lUQgMXT4s84Fi1chglGdGrQEg==",
+      "type": "package",
+      "path": "nlog/5.4.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "N.png",
+        "lib/net35/NLog.dll",
+        "lib/net35/NLog.xml",
+        "lib/net45/NLog.dll",
+        "lib/net45/NLog.xml",
+        "lib/net46/NLog.dll",
+        "lib/net46/NLog.xml",
+        "lib/netstandard1.3/NLog.dll",
+        "lib/netstandard1.3/NLog.xml",
+        "lib/netstandard1.5/NLog.dll",
+        "lib/netstandard1.5/NLog.xml",
+        "lib/netstandard2.0/NLog.dll",
+        "lib/netstandard2.0/NLog.xml",
+        "nlog.5.4.0.nupkg.sha512",
+        "nlog.nuspec"
+      ]
+    },
     "Serilog/4.2.0": {
       "sha512": "gmoWVOvKgbME8TYR+gwMf7osROiWAURterc6Rt2dQyX7wtjZYpqFiA/pY6ztjGQKKV62GGCyOcmtP1UKMHgSmA==",
       "type": "package",
@@ -3660,29 +3697,30 @@
       "Microsoft.Extensions.DependencyInjection >= 9.0.4",
       "Microsoft.Extensions.Hosting >= 9.0.4",
       "Microsoft.Extensions.Logging >= 9.0.4",
+      "NLog >= 5.4.0",
       "Serilog >= 4.2.0",
       "Serilog.Sinks.File >= 6.0.0",
       "SharpCompress >= 0.39.0"
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Krasoft2025\\.nuget\\packages\\": {},
+    "C:\\Users\\rasta\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj",
+      "projectUniqueName": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
       "projectName": "FileDownloader",
-      "projectPath": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj",
-      "packagesPath": "C:\\Users\\Krasoft2025\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\obj\\",
+      "projectPath": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
+      "packagesPath": "C:\\Users\\rasta\\.nuget\\packages\\",
+      "outputPath": "E:\\Projects JAva\\proga\\DownloaderApp\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\Krasoft2025\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\rasta\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -3763,6 +3801,10 @@
             "target": "Package",
             "version": "[9.0.4, )"
           },
+          "NLog": {
+            "target": "Package",
+            "version": "[5.4.0, )"
+          },
           "Serilog": {
             "target": "Package",
             "version": "[4.2.0, )"
@@ -3795,7 +3837,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.201/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
