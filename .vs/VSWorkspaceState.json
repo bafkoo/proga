@@ -1,0 +1,14 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.cursor",
+    "\\DownloaderApp",
+    "\\DownloaderApp\\Interfaces",
+    "\\DownloaderApp\\Models",
+    "\\DownloaderApp\\Services",
+    "\\DownloaderApp\\ViewModels",
+    "\\DownloaderApp\\Views"
+  ],
+  "SelectedNode": "\\DownloaderApp\\App.xaml.cs",
+  "PreviewInSolutionExplorer": false
+}
