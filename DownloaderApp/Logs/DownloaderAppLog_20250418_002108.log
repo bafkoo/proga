@@ -1,0 +1,23 @@
+﻿2025-04-18 00:21:08.449 | Приложение запускается...
+2025-04-18 00:21:08.456 | Обнаружено 12 лог-файлов. Удаление 2 самых старых...
+2025-04-18 00:21:08.456 | Удален старый лог-файл: DownloaderAppLog_20250417_201352.log
+2025-04-18 00:21:08.456 | Удален старый лог-файл: DownloaderAppLog_20250417_222328.log
+2025-04-18 00:21:08.471 | Конфигурация загружена.
+2025-04-18 00:21:08.628 | Retrieved BaseConnectionString: 'Data Source=85.173.112.233;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-18 00:21:08.628 | Retrieved IacConnectionString: 'Data Source=85.173.112.233;Initial Catalog=zakupkiWeb;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-18 00:21:08.628 | Retrieved ServerOfficeConnectionString: 'Data Source=85.173.112.233;Initial Catalog=IAC;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-18 00:21:08.638 | Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен
+2025-04-18 00:21:08.638 | Конструктор DownloaderViewModel: Завершен
+2025-04-18 00:21:08.887 | MainWindow создано и показано.
+2025-04-18 00:21:28.014 | НЕОБРАБОТАННОЕ ИСКЛЮЧЕНИЕ UI: System.ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+   at System.Collections.ObjectModel.Collection`1.RemoveAt(Int32 index)
+   at FileDownloader.ViewModels.DownloaderViewModel.UpdateUiFromTimerTick() in C:\Users\Krasoft2025\proga-1\DownloaderApp\ViewModels\DownloaderViewModel.cs:line 775
+   at FileDownloader.ViewModels.DownloaderViewModel.<UiUpdateTimer_Tick>b__165_0() in C:\Users\Krasoft2025\proga-1\DownloaderApp\ViewModels\DownloaderViewModel.cs:line 715
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2025-04-18 00:21:29.003 | НЕОБРАБОТАННОЕ ИСКЛЮЧЕНИЕ UI: System.ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+   at System.Collections.ObjectModel.Collection`1.RemoveAt(Int32 index)
+   at FileDownloader.ViewModels.DownloaderViewModel.UpdateUiFromTimerTick() in C:\Users\Krasoft2025\proga-1\DownloaderApp\ViewModels\DownloaderViewModel.cs:line 775
+   at FileDownloader.ViewModels.DownloaderViewModel.<UiUpdateTimer_Tick>b__165_0() in C:\Users\Krasoft2025\proga-1\DownloaderApp\ViewModels\DownloaderViewModel.cs:line 715
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
