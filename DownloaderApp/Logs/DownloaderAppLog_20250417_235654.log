@@ -1,0 +1,11 @@
+﻿2025-04-17 23:56:54.213 | Приложение запускается...
+2025-04-17 23:56:54.218 | Обнаружено 11 лог-файлов. Удаление 1 самых старых...
+2025-04-17 23:56:54.218 | Удален старый лог-файл: DownloaderAppLog_20250411_150837.log
+2025-04-17 23:56:54.240 | Конфигурация загружена.
+2025-04-17 23:56:54.522 | Retrieved BaseConnectionString: 'Data Source=85.173.112.233;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-17 23:56:54.522 | Retrieved IacConnectionString: 'Data Source=85.173.112.233;Initial Catalog=zakupkiWeb;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-17 23:56:54.522 | Retrieved ServerOfficeConnectionString: 'Data Source=85.173.112.233;Initial Catalog=IAC;User ID=sa;Password=fyfkbnbrf-2014*;TrustServerCertificate=True'
+2025-04-17 23:56:54.535 | Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен
+2025-04-17 23:56:54.535 | Конструктор DownloaderViewModel: Команды инициализированы
+2025-04-17 23:56:54.535 | Конструктор DownloaderViewModel: Завершен
+2025-04-17 23:56:54.780 | MainWindow создано и показано.

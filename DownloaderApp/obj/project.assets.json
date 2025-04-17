@@ -3704,23 +3704,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\rasta\\.nuget\\packages\\": {},
+    "C:\\Users\\Krasoft2025\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
+      "projectUniqueName": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj",
       "projectName": "FileDownloader",
-      "projectPath": "E:\\Projects JAva\\proga\\DownloaderApp\\DownloaderApp.csproj",
-      "packagesPath": "C:\\Users\\rasta\\.nuget\\packages\\",
-      "outputPath": "E:\\Projects JAva\\proga\\DownloaderApp\\obj\\",
+      "projectPath": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj",
+      "packagesPath": "C:\\Users\\Krasoft2025\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\rasta\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\Krasoft2025\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -3837,7 +3837,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.201/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
