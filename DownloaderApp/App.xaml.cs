@@ -59,7 +59,7 @@ public partial class App : Application
     {
         await _logger.LogErrorAsync("Необработанное исключение UI", e.Exception);
         MessageBox.Show($"Произошла необработанная ошибка: {e.Exception.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-        e.Handled = false;
+        e.Handled = true;
         Shutdown(-1);
     }
 

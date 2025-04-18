@@ -4,16 +4,16 @@
 winexe
 C#
 .cs
-E:\Projects JAva\proga\DownloaderApp\obj\Debug\net9.0-windows\
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\
 FileDownloader
 none
 false
 TRACE;DEBUG;NET;NET9_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NET9_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
-E:\Projects JAva\proga\DownloaderApp\App.xaml
+C:\Users\Krasoft2025\proga\DownloaderApp\App.xaml
 2302661862
 11413424753
-37-1029268918
-260-1610045839
+38-125540412
+260690349340
 Views\MainWindow.xaml;Views\SettingsWindow.xaml;
 
 False

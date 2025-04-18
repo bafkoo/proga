@@ -396,3 +396,4 @@ C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\refint\FileD
 C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.pdb
 C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.genruntimeconfig.cache
 C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\ref\FileDownloader.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\NLog.dll

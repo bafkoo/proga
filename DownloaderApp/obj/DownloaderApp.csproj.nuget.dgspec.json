@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj": {}
+    "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj": {
+    "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj",
+        "projectUniqueName": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj",
         "projectName": "FileDownloader",
-        "projectPath": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\DownloaderApp.csproj",
+        "projectPath": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\DownloaderApp.csproj",
         "packagesPath": "C:\\Users\\Krasoft2025\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Krasoft2025\\proga-1\\DownloaderApp\\obj\\",
+        "outputPath": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

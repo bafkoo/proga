@@ -1,37 +1,37 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "E:\\Projects JAva\\proga\\DownloaderApp\\",
+  "WorkspaceRootPath": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\viewmodels\\downloaderviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\viewmodels\\downloaderviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:viewmodels\\downloaderviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\utilities\\helpermethods.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\utilities\\helpermethods.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:utilities\\helpermethods.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\services\\databaseservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\services\\databaseservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:services\\databaseservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\models\\applicationsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\models\\applicationsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:models\\applicationsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\interfaces\\iconfigurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\interfaces\\iconfigurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:interfaces\\iconfigurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\services\\configurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\services\\configurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:services\\configurationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\models\\ftpsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\models\\ftpsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:models\\ftpsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|e:\\projects java\\proga\\downloaderapp\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|c:\\users\\krasoft2025\\proga\\downloaderapp\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CA4656A1-AE9A-356A-62D3-C33313283F3A}|DownloaderApp.csproj|solutionrelative:app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
@@ -42,99 +42,8 @@
       "DocumentGroups": [
         {
           "DockedHeight": 379,
-          "SelectedChildIndex": 6,
+          "SelectedChildIndex": 9,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "ConfigurationService.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Services\\ConfigurationService.cs",
-              "RelativeDocumentMoniker": "Services\\ConfigurationService.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Services\\ConfigurationService.cs",
-              "RelativeToolTip": "Services\\ConfigurationService.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAASAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:48:58.106Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "DatabaseService.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Services\\DatabaseService.cs",
-              "RelativeDocumentMoniker": "Services\\DatabaseService.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Services\\DatabaseService.cs",
-              "RelativeToolTip": "Services\\DatabaseService.cs",
-              "ViewState": "AgIAAAQAAAAAAAAAAAAjwBUAAAATAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:45:11.068Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "FtpSettings.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Models\\FtpSettings.cs",
-              "RelativeDocumentMoniker": "Models\\FtpSettings.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Models\\FtpSettings.cs",
-              "RelativeToolTip": "Models\\FtpSettings.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:44:33.864Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "ApplicationSettings.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Models\\ApplicationSettings.cs",
-              "RelativeDocumentMoniker": "Models\\ApplicationSettings.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Models\\ApplicationSettings.cs",
-              "RelativeToolTip": "Models\\ApplicationSettings.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAArAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:43:55.966Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "IConfigurationService.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Interfaces\\IConfigurationService.cs",
-              "RelativeDocumentMoniker": "Interfaces\\IConfigurationService.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Interfaces\\IConfigurationService.cs",
-              "RelativeToolTip": "Interfaces\\IConfigurationService.cs",
-              "ViewState": "AgIAAAwAAAAAAAAAAAAjwB0AAAAIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:43:30.952Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "App.xaml.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\App.xaml.cs",
-              "RelativeDocumentMoniker": "App.xaml.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\App.xaml.cs",
-              "RelativeToolTip": "App.xaml.cs",
-              "ViewState": "AgIAAEcAAAAAAAAAAAD4v00AAAAMAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-11T10:51:28.254Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "DownloaderViewModel.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\ViewModels\\DownloaderViewModel.cs",
-              "RelativeDocumentMoniker": "ViewModels\\DownloaderViewModel.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\ViewModels\\DownloaderViewModel.cs",
-              "RelativeToolTip": "ViewModels\\DownloaderViewModel.cs",
-              "ViewState": "AgIAACsFAAAAAAAAAAAawEwFAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-11T10:38:51.997Z",
-              "EditorCaption": ""
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
@@ -144,21 +53,105 @@
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{eefa5220-e298-11d0-8f78-00a0c9110057}"
+            },
+            {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "HelperMethods.cs",
-              "DocumentMoniker": "E:\\Projects JAva\\proga\\DownloaderApp\\Utilities\\HelperMethods.cs",
-              "RelativeDocumentMoniker": "Utilities\\HelperMethods.cs",
-              "ToolTip": "E:\\Projects JAva\\proga\\DownloaderApp\\Utilities\\HelperMethods.cs",
-              "RelativeToolTip": "Utilities\\HelperMethods.cs",
-              "ViewState": "AgIAABAAAAAAAAAAAAASwCgAAAAAAAAAAAAAAA==",
+              "DocumentIndex": 5,
+              "Title": "ConfigurationService.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Services\\ConfigurationService.cs",
+              "RelativeDocumentMoniker": "Services\\ConfigurationService.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Services\\ConfigurationService.cs",
+              "RelativeToolTip": "Services\\ConfigurationService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAASAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T18:57:33.071Z",
+              "WhenOpened": "2025-04-17T18:48:58.106Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "DatabaseService.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Services\\DatabaseService.cs",
+              "RelativeDocumentMoniker": "Services\\DatabaseService.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Services\\DatabaseService.cs",
+              "RelativeToolTip": "Services\\DatabaseService.cs",
+              "ViewState": "AgIAAAQAAAAAAAAAAAAjwBUAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-17T18:45:11.068Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "FtpSettings.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Models\\FtpSettings.cs",
+              "RelativeDocumentMoniker": "Models\\FtpSettings.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Models\\FtpSettings.cs",
+              "RelativeToolTip": "Models\\FtpSettings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-17T18:44:33.864Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "ApplicationSettings.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Models\\ApplicationSettings.cs",
+              "RelativeDocumentMoniker": "Models\\ApplicationSettings.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Models\\ApplicationSettings.cs",
+              "RelativeToolTip": "Models\\ApplicationSettings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-17T18:43:55.966Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "IConfigurationService.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Interfaces\\IConfigurationService.cs",
+              "RelativeDocumentMoniker": "Interfaces\\IConfigurationService.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Interfaces\\IConfigurationService.cs",
+              "RelativeToolTip": "Interfaces\\IConfigurationService.cs",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAjwB0AAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-17T18:43:30.952Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "App.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\App.xaml.cs",
+              "RelativeDocumentMoniker": "App.xaml.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\App.xaml.cs",
+              "RelativeToolTip": "App.xaml.cs",
+              "ViewState": "AgIAAEcAAAAAAAAAAAD4v00AAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-11T10:51:28.254Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DownloaderViewModel.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\ViewModels\\DownloaderViewModel.cs",
+              "RelativeDocumentMoniker": "ViewModels\\DownloaderViewModel.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\ViewModels\\DownloaderViewModel.cs",
+              "RelativeToolTip": "ViewModels\\DownloaderViewModel.cs",
+              "ViewState": "AgIAAK8GAAAAAAAAAAAYwMgGAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-11T10:38:51.997Z",
               "EditorCaption": ""
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{eefa5220-e298-11d0-8f78-00a0c9110057}"
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "HelperMethods.cs",
+              "DocumentMoniker": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Utilities\\HelperMethods.cs",
+              "RelativeDocumentMoniker": "Utilities\\HelperMethods.cs",
+              "ToolTip": "C:\\Users\\Krasoft2025\\proga\\DownloaderApp\\Utilities\\HelperMethods.cs",
+              "RelativeToolTip": "Utilities\\HelperMethods.cs",
+              "ViewState": "AgIAABAAAAAAAAAAAAASwCgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-04-17T18:57:33.071Z"
             }
           ]
         }

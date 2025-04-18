@@ -30,7 +30,7 @@ public class FileLogger : IFileLogger
         });
     }
 
-    private string FormatMessage(string level, string message, object[]? args = null, Exception? exception = null)
+    private string FormatMessage(string level, string message, object[] args = null, Exception exception = null)
     {
         var formatted = args != null && args.Length > 0 ? string.Format(CultureInfo.InvariantCulture, message, args) : message;
         if (exception != null)
@@ -43,6 +43,14 @@ public class FileLogger : IFileLogger
     public Task LogDebugAsync(string message, params object[] args) => WriteToFileAsync(FormatMessage("DEBUG", message, args));
     public Task LogInfoAsync(string message, params object[] args) => WriteToFileAsync(FormatMessage("INFO", message, args));
     public Task LogWarningAsync(string message, params object[] args) => WriteToFileAsync(FormatMessage("WARN", message, args));
-    public Task LogErrorAsync(string message, Exception? exception = null, params object[] args) => WriteToFileAsync(FormatMessage("ERROR", message, args, exception));
-    public Task LogCriticalAsync(string message, Exception? exception = null, params object[] args) => WriteToFileAsync(FormatMessage("CRITICAL", message, args, exception));
+    public Task LogErrorAsync(string message, Exception exception = null, params object[] args) => WriteToFileAsync(FormatMessage("ERROR", message, args, exception));
+    public async Task LogCriticalAsync(string message, Exception exception = null, params object[] args)
+    {
+        await WriteToFileAsync(FormatMessage("CRITICAL", message, args, exception));
+    }
+
+    public async Task LogSuccessAsync(string message, params object[] args)
+    {
+        await WriteToFileAsync(FormatMessage("SUCCESS", message, args, null));
+    }
 } 

@@ -4,17 +4,17 @@
 winexe
 C#
 .cs
-C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\
 FileDownloader
 none
 false
 TRACE;DEBUG;NET;NET9_0;NETCOREAPP
-C:\Users\Krasoft2025\proga-1\DownloaderApp\App.xaml
+C:\Users\Krasoft2025\proga\DownloaderApp\App.xaml
 2302661862
 11413424753
 361472805038
 260690349340
 Views\MainWindow.xaml;Views\SettingsWindow.xaml;
 
-True
+False
 

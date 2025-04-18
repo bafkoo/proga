@@ -4,16 +4,20 @@ using Microsoft.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 using DownloaderApp.Infrastructure;
+using DownloaderApp.Interfaces;
+using DownloaderApp.Infrastructure.Logging;
 
 namespace DownloaderApp.Services
 {
     public class DatabaseService
     {
         private readonly string _connectionString;
+        private readonly IFileLogger _fileLogger;
 
-        public DatabaseService(string connectionString)
+        public DatabaseService(string connectionString, IFileLogger fileLogger)
         {
-            _connectionString = connectionString;
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _fileLogger = fileLogger ?? throw new ArgumentNullException(nameof(fileLogger));
         }
 
         public async Task<DataTable> FetchFileListAsync(DateTime dtB, DateTime dtE, int themeId, CancellationToken token)
@@ -49,7 +53,7 @@ namespace DownloaderApp.Services
                 await SqlProcedureExecutor.ExecuteProcedureAsync("documentMetaUpdateFlag", conBase, cmd =>
                 {
                     cmd.Parameters.AddWithValue("@documentMetaID", documentMetaID);
-                }, token);
+                }, token, _fileLogger, 3);
             }
         }
     }

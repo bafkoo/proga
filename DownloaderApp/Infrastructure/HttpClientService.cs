@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using DownloaderApp.Interfaces;
 using DownloaderApp.Models;
+using DownloaderApp.Infrastructure.Logging;
+using System.Threading; // Добавляем using для SemaphoreSlim
 
 namespace DownloaderApp.Infrastructure
 {
@@ -21,9 +23,10 @@ namespace DownloaderApp.Infrastructure
         private volatile int _consecutive429Failures = 0;
         private const int BreakerFailureThreshold = 5;
         private readonly TimeSpan BreakerOpenDuration = TimeSpan.FromSeconds(30);
-        private readonly object _breakerLock = new object();
+        private static readonly SemaphoreSlim _breakerSemaphore = new SemaphoreSlim(1, 1);
         private static readonly Random _random = new Random();
         private volatile int _adaptiveDelayMilliseconds = 0;
+        private readonly IFileLogger _fileLogger;
 
         static HttpClientService()
         {
@@ -54,6 +57,11 @@ namespace DownloaderApp.Infrastructure
             _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
         }
 
+        public HttpClientService(IFileLogger fileLogger)
+        {
+            _fileLogger = fileLogger;
+        }
+
         /// <summary>
         /// Скачивает файл по указанному URL во временный файл
         /// </summary>
@@ -77,13 +85,18 @@ namespace DownloaderApp.Infrastructure
                 }
                 else
                 {
-                    lock(_breakerLock)
-                    { 
+                    await _breakerSemaphore.WaitAsync();
+                    try
+                    {
                         if (_breakerState == CircuitBreakerState.Open)
                         { 
                             _breakerState = CircuitBreakerState.HalfOpen;
-                            FileLogger.Log("Circuit Breaker переходит в состояние Half-Open.");
+                            await _fileLogger.LogInfoAsync("Circuit Breaker переходит в состояние Half-Open.");
                         }
+                    }
+                    finally
+                    {
+                        _breakerSemaphore.Release();
                     }
                 }
             }
@@ -126,19 +139,24 @@ namespace DownloaderApp.Infrastructure
                     // Если превышен порог - размыкаем цепь
                     if (failures >= BreakerFailureThreshold && _breakerState == CircuitBreakerState.Closed)
                     {
-                        lock(_breakerLock)
+                        await _breakerSemaphore.WaitAsync();
+                        try
                         {
                             if (_breakerState == CircuitBreakerState.Closed && failures >= BreakerFailureThreshold)
                             {
                                 _breakerState = CircuitBreakerState.Open;
                                 _breakerOpenUntilUtc = DateTime.UtcNow.Add(BreakerOpenDuration);
-                                FileLogger.Log($"Circuit Breaker размыкается до {_breakerOpenUntilUtc}");
+                                await _fileLogger.LogInfoAsync($"Circuit Breaker размыкается до {_breakerOpenUntilUtc}");
                                 
                                 // Увеличиваем адаптивную задержку
                                 int newDelay = Math.Min(10000, currentAdaptiveDelay + 1000); // Не более 10 секунд
                                 Interlocked.CompareExchange(ref _adaptiveDelayMilliseconds, newDelay, currentAdaptiveDelay);
-                                FileLogger.Log($"Увеличена адаптивная задержка до {newDelay} мс из-за частых ошибок 429");
+                                await _fileLogger.LogInfoAsync($"Увеличена адаптивная задержка до {newDelay} мс из-за частых ошибок 429");
                             }
+                        }
+                        finally
+                        {
+                            _breakerSemaphore.Release();
                         }
                     }
                     
@@ -199,13 +217,18 @@ namespace DownloaderApp.Infrastructure
                 // Если успешно в состоянии HalfOpen, возвращаемся в Closed
                 if (_breakerState == CircuitBreakerState.HalfOpen)
                 {
-                    lock(_breakerLock)
+                    await _breakerSemaphore.WaitAsync();
+                    try
                     {
                         if (_breakerState == CircuitBreakerState.HalfOpen)
                         {
                             _breakerState = CircuitBreakerState.Closed;
-                            FileLogger.Log("Circuit Breaker возвращается в состояние Closed после успешного запроса.");
+                            await _fileLogger.LogInfoAsync("Circuit Breaker возвращается в состояние Closed после успешного запроса.");
                         }
+                    }
+                    finally
+                    {
+                        _breakerSemaphore.Release();
                     }
                 }
                 
