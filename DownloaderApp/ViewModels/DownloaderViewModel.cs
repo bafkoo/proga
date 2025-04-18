@@ -402,6 +402,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     private readonly Dictionary<DateTime, DailyFileCount> _fileCountsDict = new Dictionary<DateTime, DailyFileCount>();
 
     private volatile bool _isInitialized = false;
+    private volatile bool _statisticsInitialized = false; // Добавляем флаг инициализации статистики
 
     private static readonly Random _random = new Random();
 
@@ -582,6 +583,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         while (_processedDatesSinceLastUpdate.TryDequeue(out _)) { }
         _lastProcessedCountForUI = 0;
         ProcessedFiles = 0;
+        _statisticsInitialized = false; // Сбрасываем флаг при старте загрузки
         _uiUpdateTimer.Start();
 
         try
@@ -612,13 +614,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         await conBase.OpenAsync(token);
                         dtTab = await FetchFileListAsync(targetDbConnectionString, dtB, dtE, themeId, srcID, token);
                         currentTotalFiles = dtTab?.Rows.Count ?? 0;
-                        // Логируем количество полученных файлов
                         await _fileLogger.LogDebugAsync($"StartDownloadAsync: FetchFileListAsync вернул {currentTotalFiles} строк.");
 
-                        if (firstCheck && currentTotalFiles > 0)
+                        // Инициализируем статистику ПЕРВЫЙ раз, когда найдены файлы
+                        if (!_statisticsInitialized && currentTotalFiles > 0)
                         {
                             TotalFiles = currentTotalFiles;
-                            // Логируем установку TotalFiles
                             await _fileLogger.LogInfoAsync($"StartDownloadAsync: TotalFiles установлен в {TotalFiles}");
                             AddLogMessage($"Обнаружено {TotalFiles} файлов для обработки за период.");
                             await _fileLogger.LogInfoAsync($"Обнаружено {TotalFiles} файлов для обработки за период.");
@@ -627,8 +628,15 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                                 try { /* ... код определения basePath ... */ }
                                 catch (Exception pathEx) { AddLogMessage($"Ошибка при определении базового пути: {pathEx.Message}"); }
                             }
-                            await InitializeDateStatisticsAsync(dtTab);
+                            await InitializeDateStatisticsAsync(dtTab); // Вызов инициализации
+                            _statisticsInitialized = true; // Устанавливаем флаг, что статистика инициализирована
+                            await _fileLogger.LogInfoAsync("StartDownloadAsync: Статистика по датам инициализирована.");
                         }
+                        // Если статистика уже инициализирована, но пришли новые данные (например, в режиме мониторинга)
+                        // Можно добавить вызов UpdateDateStatisticsAsync(dtTab); здесь, если это требуется.
+                        // else if (_statisticsInitialized && currentTotalFiles > 0) {
+                        //     await UpdateDateStatisticsAsync(dtTab);
+                        // }
                     }
                 }
                 catch (OperationCanceledException) { throw; }
@@ -1574,24 +1582,39 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     // --- НОВЫЕ Методы для статистики по датам ---
     private async Task InitializeDateStatisticsAsync(DataTable fileTable)
     {
-        if (fileTable == null) return;
+        // Добавлено логирование входа в метод
+        await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Вход в метод.");
+        if (fileTable == null)
+        {
+            // Логируем случай с null таблицей
+            await _fileLogger.LogWarningAsync("InitializeDateStatisticsAsync: Входной fileTable равен null. Статистика не будет инициализирована.");
+            return;
+        }
+        // Логируем количество строк во входной таблице
+        await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Входной fileTable содержит {fileTable.Rows.Count} строк.");
+
         AddLogMessage("InitializeDateStatisticsAsync: Расчет начальной статистики...");
-        await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Расчет начальной статистики...");
+        // await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Расчет начальной статистики..."); // Дублирующее сообщение
         try
         {
             var countsByDateList = await Task.Run(() =>
             {
                 return fileTable.AsEnumerable()
-                    .Where(row => row["publishDate"] != DBNull.Value)
+                    .Where(row => row["publishDate"] != DBNull.Value && DateTime.TryParse(row["publishDate"].ToString(), out _))
                     .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
                     .Select(g => new { Date = g.Key, Count = g.Count() })
                     .OrderBy(x => x.Date)
                     .ToList();
             });
+            
+            // Логируем количество сгруппированных дат ПЕРЕД обновлением UI
+            await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Найдено {countsByDateList.Count} уникальных дат для статистики.");
 
             // Добавляем async к лямбда-выражению
             await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
+                // Логируем начало очистки и заполнения
+                await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync (Dispatcher): Начало очистки и заполнения FileCountsPerDate и _fileCountsDict.");
                 FileCountsPerDate.Clear();
                 _fileCountsDict.Clear();
                 foreach (var item in countsByDateList)
@@ -1599,18 +1622,21 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     var newStat = new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 };
                     FileCountsPerDate.Add(newStat);
                     _fileCountsDict.Add(item.Date, newStat);
+                    // Можно добавить логирование каждой добавляемой даты, если нужно (закомментировано для краткости)
+                    // await _fileLogger.LogDebugAsync($"InitializeDateStatisticsAsync (Dispatcher): Добавлена дата {item.Date:dd.MM.yyyy} с {item.Count} файлами.");
                 }
-                // Логируем количество инициализированных дат
-                await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Инициализировано {_fileCountsDict.Count} дат в словаре.");
+                // Логируем количество инициализированных дат ПОСЛЕ заполнения
+                await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync (Dispatcher): Заполнено {_fileCountsDict.Count} дат в словаре и {FileCountsPerDate.Count} в коллекции.");
                 AddLogMessage($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
             });
         }
         catch (Exception ex)
         {
             AddLogMessage($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
-            await _fileLogger.LogErrorAsync($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}");
+            // Улучшено логирование ошибки
+            await _fileLogger.LogErrorAsync("InitializeDateStatisticsAsync: Ошибка при расчете или обновлении статистики", ex);
         }
-        await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
+        // await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат."); // Дублирующее сообщение из Dispatcher
     }
 
     private async Task UpdateDateStatisticsAsync(DataTable fileTable)
