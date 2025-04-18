@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using DownloaderApp.Infrastructure;
 using DownloaderApp.Interfaces;
 using DownloaderApp.Infrastructure.Logging;
+using System.Collections.Generic;
 
 namespace DownloaderApp.Services
 {
@@ -68,6 +69,38 @@ namespace DownloaderApp.Services
                 // Логируем критическую ошибку, если что-то пошло не так
                 await _fileLogger.LogCriticalAsync($"UpdateDownloadFlagAsync: КРИТИЧЕСКАЯ ОШИБКА при обновлении флага для ID: {documentMetaID}. Ошибка: {ex.ToString()}");
                 throw; // Пробрасываем исключение дальше
+            }
+        }
+
+        /// <summary>
+        /// Пакетное обновление флагов загрузки для нескольких файлов
+        /// </summary>
+        /// <param name="connectionString">Строка подключения к БД</param>
+        /// <param name="documentMetaIDs">Список ID документов</param>
+        /// <param name="token">Токен отмены</param>
+        /// <returns>Количество обновленных записей</returns>
+        public async Task<int> BatchUpdateDownloadFlagsAsync(string connectionString, List<int> documentMetaIDs, CancellationToken token)
+        {
+            if (documentMetaIDs == null || documentMetaIDs.Count == 0)
+                return 0;
+
+            await _fileLogger.LogInfoAsync($"BatchUpdateDownloadFlagsAsync: Попытка пакетного обновления {documentMetaIDs.Count} флагов");
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    await connection.OpenAsync(token);
+                    int updatedCount = await SqlProcedureExecutor.BatchUpdateDownloadFlagsAsync(
+                        connection, documentMetaIDs, token, _fileLogger);
+                    
+                    await _fileLogger.LogSuccessAsync($"BatchUpdateDownloadFlagsAsync: Пакетное обновление выполнено успешно. Обновлено {updatedCount} из {documentMetaIDs.Count} записей.");
+                    return updatedCount;
+                }
+            }
+            catch (Exception ex)
+            {
+                await _fileLogger.LogErrorAsync($"BatchUpdateDownloadFlagsAsync: Ошибка при пакетном обновлении. {ex.Message}", ex);
+                throw;
             }
         }
     }

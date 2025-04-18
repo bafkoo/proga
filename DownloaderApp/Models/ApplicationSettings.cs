@@ -9,7 +9,7 @@ public class ApplicationSettings
     public int UserId { get; set; }
     public int ProcessId { get; set; }
     public int SleepIntervalMilliseconds { get; set; }
-    public int MaxParallelDownloads { get; set; } = 2; // Default value
+    public int MaxParallelDownloads { get; set; } = 5; // Увеличено с 2 до 5 для ускорения загрузки
 
     // Настройки FTP (можно добавить больше, если нужно)
     public string FtpHost { get; set; }
