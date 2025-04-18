@@ -47,13 +47,27 @@ namespace DownloaderApp.Services
 
         public async Task UpdateDownloadFlagAsync(string connectionString, int documentMetaID, CancellationToken token)
         {
-            using (SqlConnection conBase = new SqlConnection(connectionString))
+            // Добавляем детальное логирование
+            await _fileLogger.LogInfoAsync($"UpdateDownloadFlagAsync: Попытка обновить флаг для ID: {documentMetaID} в строке: {connectionString?.Substring(0, connectionString.IndexOf(';') > 0 ? connectionString.IndexOf(';') : connectionString.Length)}..."); // Логируем только часть строки для безопасности
+            try
             {
-                await conBase.OpenAsync(token);
-                await SqlProcedureExecutor.ExecuteProcedureAsync("documentMetaUpdateFlag", conBase, cmd =>
+                using (SqlConnection connection = new SqlConnection(connectionString))
                 {
-                    cmd.Parameters.AddWithValue("@documentMetaID", documentMetaID);
-                }, token, _fileLogger, 3);
+                    await connection.OpenAsync(token);
+                    using (SqlCommand command = new SqlCommand("UPDATE attachment SET downloadFlag = 1 WHERE attachmentID = @ID", connection))
+                    {
+                        command.Parameters.AddWithValue("@ID", documentMetaID);
+                        await command.ExecuteNonQueryAsync(token);
+                    }
+                }
+                // Логируем успех, если SQL-запрос выполнен успешно
+                await _fileLogger.LogSuccessAsync($"UpdateDownloadFlagAsync: Прямое обновление флага для ID: {documentMetaID} выполнено успешно.");
+            }
+            catch (Exception ex)
+            {
+                // Логируем критическую ошибку, если что-то пошло не так
+                await _fileLogger.LogCriticalAsync($"UpdateDownloadFlagAsync: КРИТИЧЕСКАЯ ОШИБКА при обновлении флага для ID: {documentMetaID}. Ошибка: {ex.ToString()}");
+                throw; // Пробрасываем исключение дальше
             }
         }
     }

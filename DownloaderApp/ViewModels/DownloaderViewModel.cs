@@ -324,6 +324,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     public ICommand ClearLogCommand { get; }
     public ICommand CopyLogToClipboardCommand { get; }
     public ICommand OpenLogDirectoryCommand { get; }
+    public ICommand OpenFileLocationCommand { get; }
 
     public ObservableCollection<DailyFileCount> FileCountsPerDate { get; } = new ObservableCollection<DailyFileCount>();
 
@@ -435,6 +436,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         ClearLogCommand = new RelayCommand(ClearLog);
         CopyLogToClipboardCommand = new RelayCommand(CopyLogToClipboard);
         OpenLogDirectoryCommand = new RelayCommand(OpenLogDirectory);
+        OpenFileLocationCommand = new RelayCommand<string>(OpenFileLocation, (filePath) => !string.IsNullOrEmpty(filePath) && File.Exists(filePath));
 
         InitializeUiUpdateTimer();
     }
@@ -991,13 +993,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
 
-    private void AddLogMessage(string message, string type = "Info")
+    private void AddLogMessage(string message, string type = "Info", string? filePath = null)
     {
         var logMessage = new LogMessage
         {
             Message = message,
             Type = type,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.Now,
+            FilePath = filePath // Присваиваем путь к файлу
         };
 
         // Просто добавляем сообщение в потокобезопасную очередь
@@ -1517,7 +1520,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             // Используем СИНХРОННЫЙ метод, т.к. асинхронного нет
                             _archiveService.ExtractArchive(fileDocument, extractionPath, true); // true - разрешаем перезапись
 
-                            AddLogMessage($"Архив '{originalFileName}' успешно распакован.");
+                            // Логируем успех распаковки С ПУТЕМ К ФАЙЛУ (архиву)
+                            AddLogMessage($"Архив '{originalFileName}' успешно распакован.", "Info", fileDocument);
                             await _fileLogger.LogInfoAsync($"Архив '{originalFileName}' успешно распакован.");
 
                             // Опционально: Удаление архива после успешной распаковки - Удалено из-за ошибки компиляции (нет свойства)
@@ -1575,7 +1579,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                         if (shouldUpdateUI) // Логируем успех только периодически
                         {
-                           AddLogMessage($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.");
+                           // Логируем успех обработки С ПУТЕМ К ФАЙЛУ
+                           AddLogMessage($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.", "Success", fileDocument);
                            await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.");
                         }
                     }
@@ -1875,6 +1880,25 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         // {
         //     AddLogMessage("Не удалось определить путь к папке логов.", "Error");
         // }
+    }
+
+    private void OpenFileLocation(string filePath)
+    {
+        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+        {
+            try
+            {
+                Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+            }
+            catch (Exception ex)
+            {
+                AddLogMessage($"Ошибка при открытии папки с файлом: {ex.Message}", "Error");
+            }
+        }
+        else
+        {
+            AddLogMessage("Не удалось открыть папку с файлом: файл не найден.", "Warning");
+        }
     }
     // --- Конец методов для команд ---
 
