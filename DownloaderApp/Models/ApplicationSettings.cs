@@ -10,6 +10,7 @@ public class ApplicationSettings
     public int ProcessId { get; set; }
     public int SleepIntervalMilliseconds { get; set; }
     public int MaxParallelDownloads { get; set; } = 5; // Увеличено с 2 до 5 для ускорения загрузки
+    public bool DeleteArchiveAfterExtraction { get; set; } = false; // Новая настройка: удалять ли архив после распаковки
 
     // Настройки FTP (можно добавить больше, если нужно)
     public string FtpHost { get; set; }
@@ -33,6 +34,7 @@ public class ApplicationSettings
         ProcessId = source.ProcessId;
         SleepIntervalMilliseconds = source.SleepIntervalMilliseconds;
         MaxParallelDownloads = source.MaxParallelDownloads;
+        DeleteArchiveAfterExtraction = source.DeleteArchiveAfterExtraction; // Копируем новую настройку
         FtpHost = source.FtpHost;
         FtpPort = source.FtpPort;
         FtpUsername = source.FtpUsername;

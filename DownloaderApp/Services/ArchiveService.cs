@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic; // Добавлено для List<string>
 // using System.IO.Compression; // Больше не нужен для основной распаковки
 using System.Threading.Tasks;
 using NLog;
@@ -27,7 +28,8 @@ namespace DownloaderApp.Services
         /// <param name="archivePath">Путь к архиву.</param>
         /// <param name="destinationPath">Путь к директории назначения.</param>
         /// <param name="overwriteFiles">Перезаписывать ли существующие файлы.</param>
-        public void ExtractArchive(string archivePath, string destinationPath, bool overwriteFiles = true)
+        /// <returns>Список полных путей к распакованным файлам.</returns>
+        public List<string> ExtractArchive(string archivePath, string destinationPath, bool overwriteFiles = true)
         {
             if (!File.Exists(archivePath))
             {
@@ -36,6 +38,7 @@ namespace DownloaderApp.Services
             }
 
             _logger.Info($"Начало распаковки архива (автоопределение): {archivePath} -> {destinationPath}");
+            var extractedFiles = new List<string>(); // Список для хранения путей
 
             try
             {
@@ -57,13 +60,16 @@ namespace DownloaderApp.Services
                     {
                         if (!entry.IsDirectory) // Распаковываем только файлы
                         {
-                            _logger.Debug($"Распаковка файла: {entry.Key}");
+                            string extractedFilePath = Path.Combine(destinationPath, entry.Key);
+                            _logger.Debug($"Распаковка файла: {entry.Key} -> {extractedFilePath}");
                             entry.WriteToDirectory(destinationPath, extractionOptions);
+                            extractedFiles.Add(extractedFilePath); // Добавляем путь к файлу в список
                         }
                     }
                 }
 
-                _logger.Info($"Архив успешно распакован: {archivePath}");
+                _logger.Info($"Архив успешно распакован: {archivePath}. Извлечено файлов: {extractedFiles.Count}");
+                return extractedFiles; // Возвращаем список файлов
             }
             catch (Exception ex)
             {
