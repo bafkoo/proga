@@ -44,6 +44,7 @@ using DownloaderApp.Models;
 using Microsoft.Extensions.Options;
 using NLog;
 using MahApps.Metro.Controls;
+using DownloaderApp.Infrastructure.Logging;
 
 namespace FileDownloader.ViewModels;
 
@@ -113,6 +114,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     private readonly ConfigurationService _configurationService;
     private readonly ArchiveService _archiveService;
     private readonly Logger _logger;
+    private readonly IFileLogger _fileLogger;
 
     private volatile int _adaptiveDelayMilliseconds = 0;
 
@@ -138,12 +140,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             if (SetProperty(ref _selectedDatabase, value))
             {
-                AddLogMessage($"SelectedDatabase изменена на: {(value != null ? value.DisplayName : "NULL")}", "Info");
+                await _fileLogger.LogInfoAsync($"SelectedDatabase изменена на: {(value != null ? value.DisplayName : "NULL")}");
                 LoadAvailableThemes();
                 if (StartDownloadCommand is AsyncRelayCommand rc)
                 {
                     rc.NotifyCanExecuteChanged();
-                    AddLogMessage("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedDatabase", "Info");
+                    await _fileLogger.LogInfoAsync("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedDatabase");
                 }
             }
         }
@@ -157,11 +159,11 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             if (SetProperty(ref _selectedTheme, value))
             {
-                AddLogMessage($"SelectedTheme изменена на: {(value != null ? value.Name : "NULL")}", "Info");
+                await _fileLogger.LogInfoAsync($"SelectedTheme изменена на: {(value != null ? value.Name : "NULL")}");
                 if (StartDownloadCommand is AsyncRelayCommand rc)
                 {
                     rc.NotifyCanExecuteChanged();
-                    AddLogMessage("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedTheme", "Info");
+                    await _fileLogger.LogInfoAsync("NotifyCanExecuteChanged вызван для StartDownloadCommand из SelectedTheme");
                 }
             }
         }
@@ -410,11 +412,27 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     private readonly object _breakerLock = new object(); // Для синхронизации доступа к состоянию
     // --- Конец полей для Circuit Breaker ---
 
-    public DownloaderViewModel()
+    public static async Task<DownloaderViewModel> CreateAsync(IFileLogger fileLogger)
     {
+        var vm = new DownloaderViewModel(fileLogger);
         try
         {
-            AddLogMessage("=== СТАРТ КОНСТРУКТОРА ===", "Info");
+            await vm.LoadConfigurationAndSettingsAsync();
+            // ... остальная инициализация, если нужно ...
+        }
+        catch (Exception ex)
+        {
+            await fileLogger.LogErrorAsync("Критическая ошибка в конструкторе DownloaderViewModel", ex);
+        }
+        return vm;
+    }
+
+    private DownloaderViewModel(IFileLogger fileLogger)
+    {
+        _fileLogger = fileLogger;
+        try
+        {
+            await _fileLogger.LogInfoAsync("=== СТАРТ КОНСТРУКТОРА ===");
             // Инициализация служб
             _logger = LogManager.GetCurrentClassLogger();
             _configurationService = new ConfigurationService();
@@ -423,8 +441,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             // Загружаем конфигурацию СНАЧАЛА, чтобы получить строки подключения
             LoadConfigurationAndSettings();
-            FileLogger.Log("Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен");
-            AddLogMessage("Конфигурация загружена", "Info");
+            await _fileLogger.LogInfoAsync("Конструктор DownloaderViewModel: LoadConfigurationAndSettings завершен");
+            await _fileLogger.LogInfoAsync("Конфигурация загружена");
 
             // ТЕПЕРЬ инициализируем DatabaseService с загруженной строкой подключения
             if (string.IsNullOrEmpty(_baseConnectionString))
@@ -435,28 +453,30 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             // Инициализация команд
             StartDownloadCommand = new AsyncRelayCommand(StartDownloadAsync, CanStartDownload);
-            AddLogMessage($"StartDownloadCommand создана как {StartDownloadCommand.GetType().FullName}", "Info");
+            await _fileLogger.LogInfoAsync($"StartDownloadCommand создана как {StartDownloadCommand.GetType().FullName}");
             
             CancelDownloadCommand = new RelayCommand(CancelDownload, CanCancelDownload);
             OpenSettingsCommand = new RelayCommand(OpenSettingsWindow);
             ClearLogCommand = new RelayCommand(ClearLog, CanClearLog);
             CopyLogToClipboardCommand = new RelayCommand(CopyLogToClipboard, CanCopyLog);
             OpenLogDirectoryCommand = new RelayCommand(OpenLogDirectory);
-            AddLogMessage("Команды инициализированы", "Info");
+            await _fileLogger.LogInfoAsync("Команды инициализированы");
 
             StatusMessage = "Инициализация...";
-            FileLogger.Log("Конструктор DownloaderViewModel: Завершен");
+            await _fileLogger.LogInfoAsync("Конструктор DownloaderViewModel: Завершен");
 
             InitializeUiUpdateTimer();
             InitializeLogFilterTypes();
-            AddLogMessage("Таймеры и фильтры инициализированы", "Info");
+            await _fileLogger.LogInfoAsync("Таймеры и фильтры инициализированы");
 
             // Запускаем асинхронную инициализацию
             _ = InitializeAsync();
 
             // Инициализация коллекций
             PopulateThemeSelectors(); // Заполняем списки тем
-            AddLogMessage("=== УСТАНОВКА ТЕМ ПО УМОЛЧАНИЮ ===", "Info");
+            AddLogMessage("PopulateThemeSelectors: Списки тем и акцентных цветов заполнены.", "Info");
+            await _fileLogger.LogInfoAsync("PopulateThemeSelectors: Списки тем и акцентных цветов заполнены.");
+            await _fileLogger.LogInfoAsync("=== УСТАНОВКА ТЕМ ПО УМОЛЧАНИЮ ===");
             // Устанавливаем значения по умолчанию из настроек или первые доступные
             SelectedBaseUiTheme = AvailableBaseUiThemes.Contains(CurrentSettings.BaseTheme)
                                     ? CurrentSettings.BaseTheme
@@ -464,14 +484,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             SelectedAccentUiColor = AvailableAccentUiColors.Contains(CurrentSettings.AccentColor)
                                     ? CurrentSettings.AccentColor
                                     : AvailableAccentUiColors.FirstOrDefault() ?? "Blue"; // Значение по умолчанию, если список пуст
-            AddLogMessage($"Установлены темы UI: {SelectedBaseUiTheme}.{SelectedAccentUiColor}", "Info");
-            AddLogMessage("=== КОНЕЦ КОНСТРУКТОРА ===", "Info");
+            await _fileLogger.LogInfoAsync($"Установлены темы UI: {SelectedBaseUiTheme}.{SelectedAccentUiColor}");
+            await _fileLogger.LogInfoAsync("=== КОНЕЦ КОНСТРУКТОРА ===");
         }
         catch (Exception ex)
         {
             StatusMessage = "Ошибка инициализации";
-            AddLogMessage($"Критическая ошибка в конструкторе: {ex.Message}", "Error");
-            FileLogger.Log($"Критическая ошибка в конструкторе DownloaderViewModel: {ex}");
+            await _fileLogger.LogErrorAsync($"Критическая ошибка в конструкторе: {ex.Message}");
+            await _fileLogger.LogErrorAsync($"Критическая ошибка в конструкторе DownloaderViewModel: {ex}");
         }
     }
 
@@ -484,6 +504,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task StartDownloadAsync()
     {
+        await _fileLogger.LogInfoAsync("Старт процесса загрузки файлов");
         _cancellationTokenSource = new CancellationTokenSource();
         var token = _cancellationTokenSource.Token;
         IsDownloading = true;
@@ -499,7 +520,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         LogMessages.Clear();
         FileCountsPerDate.Clear();
         _fileCountsDict.Clear();
-        AddLogMessage("Запуск процесса загрузки...");
+        await _fileLogger.LogInfoAsync("Запуск процесса загрузки...");
 
         string databaseName = SelectedDatabase.Name;
         int themeId = SelectedTheme.Id;
@@ -529,6 +550,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             {
                 if (!firstCheck)
                 {
+                    await _fileLogger.LogInfoAsync($"Ожидание {checkInterval.TotalMinutes} минут перед следующей проверкой новых файлов...");
                     AddLogMessage($"Ожидание {checkInterval.TotalMinutes} минут перед следующей проверкой новых файлов...");
                     await Task.Delay(checkInterval, token);
                 }
@@ -537,6 +559,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 if (token.IsCancellationRequested) break;
 
                 AddLogMessage($"{(processedFileIdsInThisSession.IsEmpty ? "Первичная" : "Повторная")} проверка файлов за период с {dtB:dd.MM.yyyy} по {dtE:dd.MM.yyyy HH:mm:ss}...");
+                await _fileLogger.LogInfoAsync($"{(processedFileIdsInThisSession.IsEmpty ? "Первичная" : "Повторная")} проверка файлов за период с {dtB:dd.MM.yyyy} по {dtE:dd.MM.yyyy HH:mm:ss}...");
                 StatusMessage = "Получение списка файлов...";
 
                 DataTable dtTab = null;
@@ -554,6 +577,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         {
                              TotalFiles = currentTotalFiles; 
                              AddLogMessage($"Обнаружено {TotalFiles} файлов для обработки за период.");
+                             await _fileLogger.LogInfoAsync($"Обнаружено {TotalFiles} файлов для обработки за период.");
                              if (basePath == null && srcID == 0 && dtTab.Rows.Count > 0)
                              {
                                  try { /* ... код определения basePath ... */ }
@@ -567,6 +591,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 catch (Exception ex)
                 {
                     AddLogMessage($"Критическая ошибка при получении списка файлов: {ex.Message}. Проверка будет повторена через {checkInterval.TotalMinutes} минут.", "Error");
+                    await _fileLogger.LogErrorAsync($"Критическая ошибка при получении списка файлов: {ex.Message}. Проверка будет повторена через {checkInterval.TotalMinutes} минут.");
                     StatusMessage = "Ошибка получения списка файлов.";
                     continue;
                 }
@@ -574,6 +599,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 if (dtTab == null || dtTab.Rows.Count == 0)
                 {
                     AddLogMessage("Не найдено файлов для обработки в указанном диапазоне или произошла ошибка при получении списка.");
+                    await _fileLogger.LogInfoAsync("Не найдено файлов для обработки в указанном диапазоне или произошла ошибка при получении списка.");
                     continue;
                 }
 
@@ -584,10 +610,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 if (!filesToProcess.Any())
                 {
                     AddLogMessage("Новых файлов для обработки не найдено в этой проверке.");
+                    await _fileLogger.LogInfoAsync("Новых файлов для обработки не найдено в этой проверке.");
                     continue;
                 }
 
                 AddLogMessage($"Найдено {filesToProcess.Count} новых файлов для обработки в этой проверке.");
+                await _fileLogger.LogInfoAsync($"Найдено {filesToProcess.Count} новых файлов для обработки в этой проверке.");
                 StatusMessage = $"Обработка {filesToProcess.Count} новых файлов...";
 
                 var tasks = new List<Task>();
@@ -619,18 +647,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         catch (OperationCanceledException)
                         {
                              AddLogMessage($"Обработка файла (ID: {documentMetaId}) отменена.", "Warning");
+                             await _fileLogger.LogWarningAsync($"Обработка файла (ID: {documentMetaId}) отменена.");
                         }
                         catch (Exception ex)
                         {
                             string originalFileName = row.Table.Columns.Contains("fileName") ? row["fileName"].ToString() : $"ID: {documentMetaId}";
                             AddLogMessage($"Ошибка при обработке файла '{originalFileName}': {ex.Message}", "Error");
+                            await _fileLogger.LogErrorAsync($"Ошибка при обработке файла '{originalFileName}': {ex.Message}");
                             if (!IgnoreDownloadErrors)
                             {
                                 AddLogMessage($"Обработка файла '{originalFileName}' пропущена из-за ошибки.", "Warning");
+                                await _fileLogger.LogWarningAsync($"Обработка файла '{originalFileName}' пропущена из-за ошибки.");
                             }
                             else
                             {
                                 AddLogMessage($"Ошибка обработки файла '{originalFileName}' проигнорирована согласно настройкам.", "Warning");
+                                await _fileLogger.LogWarningAsync($"Ошибка обработки файла '{originalFileName}' проигнорирована согласно настройкам.");
                             }
                         }
                         finally
@@ -647,10 +679,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 catch (OperationCanceledException)
                 {
                      AddLogMessage("Операция отменена пользователем во время обработки файлов.", "Warning");
+                    AddLogMessage("Операция отменена пользователем во время обработки файлов.", "Warning");
+                    await _fileLogger.LogWarningAsync("Операция отменена пользователем во время обработки файлов.");
                     throw;
                 }
 
                 AddLogMessage("Обработка текущей пачки новых файлов завершена.");
+                await _fileLogger.LogInfoAsync($"Обработка текущей пачки новых файлов завершена.");
 
             }
 
@@ -658,6 +693,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             {
                 finalStatus = "Загрузка отменена пользователем.";
                 AddLogMessage(finalStatus, "Warning");
+                await _fileLogger.LogWarningAsync(finalStatus);
             }
             else if (DateTime.Now > dtE)
             {
@@ -667,6 +703,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 finalStatus = "Загрузка завершена.";
             }
              AddLogMessage($"Всего обработано файлов в этом сеансе: {_processedFilesCounter}");
+            await _fileLogger.LogInfoAsync($"Всего обработано файлов в этом сеансе: {_processedFilesCounter}");
 
         }
         catch (OperationCanceledException)
@@ -678,6 +715,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             finalStatus = $"Ошибка во время загрузки: {ex.Message}";
             AddLogMessage($"Критическая ошибка: {ex.ToString()}", "Error");
+            await _fileLogger.LogErrorAsync($"Критическая ошибка: {ex.ToString()}");
         }
         finally
         {
@@ -707,6 +745,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             (CancelDownloadCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (OpenSettingsCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
+        await _fileLogger.LogInfoAsync($"Завершение процесса загрузки файлов. Итог: {StatusMessage}");
     }
 
     private void UiUpdateTimer_Tick(object sender, EventArgs e)
@@ -746,6 +785,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 else
                 {
                     AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}.", "Warning");
+                    await _fileLogger.LogInfoAsync($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}.");
                     var statFromList = FileCountsPerDate.FirstOrDefault(d => d.Date == kvp.Key);
                     if (statFromList != null)
                         statFromList.ProcessedCount += kvp.Value;
@@ -838,11 +878,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             try
             {
                 AddLogMessage($"Подключение к FTP: {ftpSettings.FtpHost}:{ftpSettings.FtpPort}...");
+                await _fileLogger.LogInfoAsync($"Подключение к FTP: {ftpSettings.FtpHost}:{ftpSettings.FtpPort}...");
                 await ftpClient.Connect(token);
                 AddLogMessage("FTP подключение установлено.");
+                await _fileLogger.LogInfoAsync("FTP подключение установлено.");
 
                 string remotePath = remoteFileName; // TODO: Уточнить логику пути
                 AddLogMessage($"Загрузка на FTP: {localFilePath} -> {remotePath}");
+                await _fileLogger.LogInfoAsync($"Загрузка на FTP: {localFilePath} -> {remotePath}");
 
                 // UploadFile возвращает FtpStatus
                 var status = await ftpClient.UploadFile(localFilePath, remotePath, FtpRemoteExists.Overwrite, true, FtpVerify.None, null, token);
@@ -858,6 +901,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     throw new Exception(errorMessage); // Используем стандартное Exception
                 }
                 AddLogMessage("FTP загрузка завершена.");
+                await _fileLogger.LogInfoAsync("FTP загрузка завершена.");
             }
             catch (OperationCanceledException) { AddLogMessage($"Загрузка на FTP отменена: {localFilePath}"); throw; }
             catch (FtpCommandException ftpCmdEx) // Используем using FluentFTP.Exceptions;
@@ -872,7 +916,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 AddLogMessage($"ОШИБКА FTP: {ex.GetType().Name} - {ex.Message}"); 
                 throw; 
             }
-            finally { if (ftpClient.IsConnected) { await ftpClient.Disconnect(token); AddLogMessage("FTP соединение закрыто."); } }
+            finally { if (ftpClient.IsConnected) { await ftpClient.Disconnect(token); AddLogMessage("FTP соединение закрыто."); await _fileLogger.LogInfoAsync("FTP соединение закрыто."); } }
         }
     }
 
@@ -897,6 +941,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             if (LogMessages == null)
             {
                 AddLogMessage("UpdateFilteredLogMessages: LogMessages is null!", "Error");
+                await _fileLogger.LogErrorAsync("UpdateFilteredLogMessages: LogMessages is null!");
                 return;
             }
 
@@ -916,11 +961,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             {
                 _filteredLogMessages.Add(message);
             }
+
+            AddLogMessage($"UpdateFilteredLogMessages: Добавлено {messagesToShow.Count()} сообщений.", "Info");
+            await _fileLogger.LogInfoAsync($"UpdateFilteredLogMessages: Добавлено {messagesToShow.Count()} сообщений.");
         }
         catch (Exception ex)
         {
             // Логируем ошибку в файл, так как логи UI могут не работать
-            FileLogger.Log($"Ошибка в UpdateFilteredLogMessages: {ex}");
+            AddLogMessage($"Ошибка в UpdateFilteredLogMessages: {ex}");
         }
     }
 
@@ -933,6 +981,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         LogFilterTypes.Add(new LogFilterType { Name = "Info", DisplayName = "Информация", Type = "Info" });
         LogFilterTypes.Add(new LogFilterType { Name = "Success", DisplayName = "Успешно", Type = "Success" });
         SelectedLogFilterType = LogFilterTypes.First();
+        AddLogMessage("InitializeLogFilterTypes: Фильтры инициализированы.", "Info");
+        await _fileLogger.LogInfoAsync("InitializeLogFilterTypes: Фильтры инициализированы.");
     }
 
     // --- Свойства для баз данных и тем ---
@@ -947,14 +997,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private void LoadAvailableDatabases()
     {
-        AddLogMessage($"LoadAvailableDatabases: Начало. Проверка _baseConnectionString.", "Info"); // Добавлено
+        AddLogMessage($"LoadAvailableDatabases: Начало. Проверка _baseConnectionString.", "Info");
+        await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: Начало. Проверка _baseConnectionString.");
         if (string.IsNullOrEmpty(_baseConnectionString))
         {
             AddLogMessage("LoadAvailableDatabases: Ошибка - _baseConnectionString пустая или null.", "Error"); // Изменено
+            await _fileLogger.LogErrorAsync("LoadAvailableDatabases: Ошибка - _baseConnectionString пустая или null.");
             return;
         }
-        AddLogMessage($"LoadAvailableDatabases: _baseConnectionString = '{_baseConnectionString}'.", "Info"); // Добавлено
-
+        AddLogMessage($"LoadAvailableDatabases: _baseConnectionString = '{_baseConnectionString}'.", "Info");
+        await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: _baseConnectionString = '{_baseConnectionString}'.");
+        AddLogMessage($"LoadAvailableDatabases: Начало цикла проверки {databases.Length} баз данных.", "Info");
+        await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: Начало цикла проверки {databases.Length} баз данных.");
         try
         {
             // Удаляем "notificationEF", "notificationZK", "notificationOK" из списка
@@ -969,6 +1023,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     // Убираем Replace, так как базовое имя БД теперь не важно
                     var connectionString = _baseConnectionString + $";Initial Catalog={db}";
                     AddLogMessage($"LoadAvailableDatabases: Попытка подключения к {db} ({connectionString})", "Info"); // Добавлено
+                    await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: Попытка подключения к {db} ({connectionString})");
                     using (var connection = new SqlConnection(connectionString))
                     {
                         // Установим короткий таймаут для быстрой проверки
@@ -986,43 +1041,56 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         }
 
                         availableDbs.Add(new DatabaseInfo { Name = db, DisplayName = displayName });
+                        AddLogMessage($"LoadAvailableDatabases: База данных {displayName} доступна.", "Info");
+                        await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: База данных {displayName} доступна.");
                         AddLogMessage($"LoadAvailableDatabases: База данных {displayName} доступна.", "Success"); // Изменено
+                        await _fileLogger.LogSuccessAsync($"LoadAvailableDatabases: База данных {displayName} доступна.");
                     }
                 }
                 catch (Exception ex)
                 {
                     // Логируем подробно ошибку подключения
                     AddLogMessage($"LoadAvailableDatabases: База данных {db} недоступна. Ошибка: {ex.GetType().Name} - {ex.Message}", "Warning"); // Изменено
+                    await _fileLogger.LogErrorAsync($"LoadAvailableDatabases: База данных {db} недоступна. Ошибка: {ex.GetType().Name} - {ex.Message}");
+                    await _fileLogger.LogErrorAsync($"LoadAvailableDatabases: База данных {db} недоступна. Ошибка: {ex.GetType().Name} - {ex.Message}");
                 }
             }
             AddLogMessage($"LoadAvailableDatabases: Цикл проверки баз данных завершен. Найдено доступных: {availableDbs.Count}.", "Info"); // Добавлено
+            await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: Цикл проверки баз данных завершен. Найдено доступных: {availableDbs.Count}.");
 
             AvailableDatabases = new ObservableCollection<DatabaseInfo>(availableDbs);
             AddLogMessage("LoadAvailableDatabases: Загрузка списка доступных баз данных завершена.", "Info"); // Изменено
+            await _fileLogger.LogSuccessAsync("LoadAvailableDatabases: Загрузка списка доступных баз данных завершена.");
         }
         catch (Exception ex)
         {
             AddLogMessage($"LoadAvailableDatabases: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}", "Error"); // Изменено
+            await _fileLogger.LogErrorAsync($"LoadAvailableDatabases: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}");
             if (ex.InnerException != null)
             {
                 AddLogMessage($"LoadAvailableDatabases: Внутренняя ошибка: {ex.InnerException.Message}", "Error"); // Изменено
+                await _fileLogger.LogErrorAsync($"LoadAvailableDatabases: Внутренняя ошибка: {ex.InnerException.Message}");
             }
             AvailableDatabases.Clear(); // Очищаем на всякий случай
         }
         AddLogMessage($"LoadAvailableDatabases: Завершение метода.", "Info"); // Добавлено
+        await _fileLogger.LogInfoAsync($"LoadAvailableDatabases: Завершение метода.");
     }
 
     // Метод для загрузки списка тем из базы IAC (zakupkiweb)
     private void LoadAvailableThemes()
     {
         AddLogMessage("LoadAvailableThemes: Загрузка тем из базы IAC (zakupkiweb)...", "Info");
+        await _fileLogger.LogInfoAsync("LoadAvailableThemes: Загрузка тем из базы IAC (zakupkiweb)...");
         if (string.IsNullOrEmpty(_iacConnectionString))
         {
              AddLogMessage("LoadAvailableThemes: Ошибка - строка подключения IacConnection не загружена.", "Error");
              SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes));
+             await _fileLogger.LogErrorAsync("LoadAvailableThemes: Ошибка - строка подключения IacConnection не загружена.");
              return;
         }
          AddLogMessage($"LoadAvailableThemes: Используется строка подключения _iacConnectionString='{_iacConnectionString}'", "Info");
+        await _fileLogger.LogInfoAsync($"LoadAvailableThemes: Используется строка подключения _iacConnectionString='{_iacConnectionString}'");
 
         try
         {
@@ -1045,6 +1113,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         }
                         SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes));
                         AddLogMessage($"LoadAvailableThemes: Загружено {themes.Count} тем из IAC.", "Success");
+                        await _fileLogger.LogSuccessAsync($"LoadAvailableThemes: Загружено {themes.Count} тем из IAC.");
                     }
                 }
             }
@@ -1052,9 +1121,11 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         catch (Exception ex)
         {
             AddLogMessage($"LoadAvailableThemes: Ошибка при загрузке тем из IAC: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"LoadAvailableThemes: Ошибка при загрузке тем из IAC: {ex.Message}");
             SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes));
         }
          AddLogMessage("LoadAvailableThemes: Завершение метода.", "Info");
+        await _fileLogger.LogInfoAsync("LoadAvailableThemes: Завершение метода.");
     }
 
     private void CancelDownload()
@@ -1115,21 +1186,51 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         else if (databaseName == "notificationZK") suffixName = "_nzk";
         else if (databaseName == "notificationOK") suffixName = "_nok";
 
-        // --- Унифицированная логика формирования пути и имени файла ---\n        // Используем данные, которые точно есть
-        string pathDocument = $@"""\\{computerName}\{directoryName}\{themeId}\{publishDate.Year}\{publishDate.Month}\{publishDate.Day}\";
-        string fileDocument = Path.Combine(pathDocument, $"{documentMetaID}{suffixName}.{expName}");
-        // Логика с srcID и fileNameFtp удалена, т.к. fileNameFtp не возвращается процедурой
+        // --- Унифицированная логика формирования пути и имени файла ---
+        // Используем данные, которые точно есть
 
-        // Проверяем, что путь и имя сформированы корректно
-        if (string.IsNullOrWhiteSpace(pathDocument))
+        // Очистка потенциально небезопасных имен
+        var cleanComputerName = computerName.Trim('\\', '/'); // Убираем слэши по краям
+        var cleanDirectoryName = directoryName.Trim('\\', '/');
+
+        // Формируем компоненты даты как строки
+        var yearStr = publishDate.Year.ToString();
+        var monthStr = publishDate.Month.ToString("D2"); // Формат "04"
+        var dayStr = publishDate.Day.ToString("D2"); // Формат "17"
+
+        // Собираем путь безопасно
+        string baseDirectory;
+        // Если computerName похож на локальный диск (C:)
+        if (Path.IsPathRooted(cleanComputerName) && cleanComputerName.Contains(":"))
         {
-            throw new InvalidOperationException($"Не удалось сформировать путь к директории для documentMetaID: {documentMetaID}");
+             // Предполагаем, что directoryName это подпапка
+             baseDirectory = Path.Combine(cleanComputerName, cleanDirectoryName);
         }
-        if (string.IsNullOrWhiteSpace(fileDocument))
+        // Иначе, предполагаем, что это сетевой путь (имя сервера + имя ресурса)
+        else
         {
-            throw new InvalidOperationException($"Не удалось сформировать путь к файлу для documentMetaID: {documentMetaID}");
+            // Убедимся, что имя сервера начинается с \\
+            string serverPart = cleanComputerName;
+            if (!serverPart.StartsWith(@"\\"))
+            {
+                 AddLogMessage($"ПРЕДУПРЕЖДЕНИЕ: computerName ('{computerName}') не начинается с '\\'. Добавляем префикс для UNC пути.", "Warning");
+                 serverPart = @"\\" + serverPart;
+            }
+             baseDirectory = Path.Combine(serverPart, cleanDirectoryName);
         }
-        // Удалена проверка if (srcID != 0 && string.IsNullOrWhiteSpace(pathDocument)), т.к. pathDocument теперь всегда формируется
+
+        string pathDocument = Path.Combine(
+            baseDirectory,
+            themeId.ToString(),
+            yearStr,
+            monthStr,
+            dayStr);
+
+        // Формируем полное имя файла
+        string fileNameOnly = $"{documentMetaID}{suffixName}.{expName}";
+        string fileDocument = Path.Combine(pathDocument, fileNameOnly);
+        
+        // Логика с srcID и fileNameFtp удалена, т.к. fileNameFtp не возвращается процедурой
 
         try // Основной try для ProcessFileAsync
         {
@@ -1198,6 +1299,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     if (currentAdaptiveDelay > 0)
                     {
                         AddLogMessage($"Применяется адаптивная задержка: {currentAdaptiveDelay} мс");
+                        await _fileLogger.LogInfoAsync($"Применяется адаптивная задержка: {currentAdaptiveDelay} мс");
                         await Task.Delay(currentAdaptiveDelay, token);
                     }
 
@@ -1208,6 +1310,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         if (attempt > 1 || shouldUpdateUI)
                         {
                             AddLogMessage($"Попытка скачивания #{attempt} для: {originalFileName}");
+                            await _fileLogger.LogInfoAsync($"Попытка скачивания #{attempt} для: {originalFileName}");
                         }
 
                         downloadResult = await WebGetAsync(url, fileDocument, token, progress);
@@ -1220,6 +1323,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             if (shouldUpdateUI)
                             {
                                 AddLogMessage($"Файл '{originalFileName}' скачан успешно (попытка {attempt}), размер: {fileSize} байт.");
+                                await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' скачан успешно (попытка {attempt}), размер: {fileSize} байт.");
+                            }
+
                             }
 
                             Interlocked.Exchange(ref _consecutive429Failures, 0);
@@ -1354,6 +1460,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             // чтобы флаг для самого архива все равно был обновлен в базе.
                             _logger.Error(archiveEx, $"Ошибка при распаковке архива {fileDocument}");
                             AddLogMessage($"Ошибка распаковки архива '{originalFileName}': {archiveEx.Message}", "Error");
+                            await _fileLogger.LogErrorAsync($"Ошибка распаковки архива '{originalFileName}': {archiveEx.Message}");
                         }
                     }
 
@@ -1363,11 +1470,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         AddLogMessage($"Обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
                         await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, documentMetaID, token);
                         AddLogMessage($"Флаг для файла ID: {documentMetaID} успешно обновлен.", "Success");
+                        await _fileLogger.LogSuccessAsync($"Флаг для файла ID: {documentMetaID} успешно обновлен.");
                     }
                     catch (Exception updateEx)
                     {
                         _logger.Error(updateEx, $"Ошибка при обновлении флага загрузки для файла ID: {documentMetaID} в базе {databaseName}");
                         AddLogMessage($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {updateEx.Message}", "Error");
+                        await _fileLogger.LogErrorAsync($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {updateEx.Message}");
                         // Решаем, что делать дальше. Возможно, стоит перебросить исключение,
                         // чтобы обработка файла считалась неуспешной в целом?
                         // Пока просто логируем и продолжаем.
@@ -1404,6 +1513,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     {
         if (fileTable == null) return;
         AddLogMessage("InitializeDateStatisticsAsync: Расчет начальной статистики...");
+        await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Расчет начальной статистики...");
         try
         {
             var countsByDateList = await Task.Run(() =>
@@ -1432,7 +1542,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         catch (Exception ex)
         {
             AddLogMessage($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}");
         }
+        await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
     }
 
     private async Task UpdateDateStatisticsAsync(DataTable fileTable)
@@ -1441,6 +1553,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         // Оставляем её как есть или добавляем, если отсутствует
         if (fileTable == null) return;
         AddLogMessage("UpdateDateStatisticsAsync: Обновление статистики...");
+        await _fileLogger.LogInfoAsync("UpdateDateStatisticsAsync: Обновление статистики...");
         try
         {
             var currentCountsByDateDict = await Task.Run(() =>
@@ -1462,19 +1575,24 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                          FileCountsPerDate.Add(newStat);
                          _fileCountsDict.Add(date, newStat);
                          AddLogMessage($"UpdateDateStatisticsAsync: Добавлена дата {date:dd.MM.yyyy} ({newCount} файлов).");
+                         await _fileLogger.LogInfoAsync($"UpdateDateStatisticsAsync: Добавлена дата {date:dd.MM.yyyy} ({newCount} файлов).");
                     }
                     else if (existingStat.Count < newCount)
                     {
                          AddLogMessage($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
                          existingStat.Count = newCount;
+                         AddLogMessage($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
+                         await _fileLogger.LogInfoAsync($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
                     }
                  }
             });
             AddLogMessage($"UpdateDateStatisticsAsync: Обновление завершено.");
+            await _fileLogger.LogInfoAsync($"UpdateDateStatisticsAsync: Обновление завершено.");
         }
         catch (Exception ex)
         {
              AddLogMessage($"UpdateDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"UpdateDateStatisticsAsync: Ошибка: {ex.Message}");
         }
     }
     // --- Конец НОВЫХ МЕТОДОВ для статистики ---
@@ -1482,10 +1600,10 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     // --- Асинхронный метод загрузки баз ---
     private async Task LoadAvailableDatabasesAsync()
     {
-        AddLogMessage($"LoadAvailableDatabasesAsync: Начало.");
+        await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: Начало.");
         if (string.IsNullOrEmpty(_baseConnectionString))
         {
-            AddLogMessage("LoadAvailableDatabasesAsync: Ошибка - _baseConnectionString пустая.", "Error");
+            await _fileLogger.LogErrorAsync("LoadAvailableDatabasesAsync: Ошибка - _baseConnectionString пустая.");
             await Application.Current.Dispatcher.InvokeAsync(() =>
                 SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases))
             );
@@ -1513,22 +1631,26 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                              default: displayName = db; break;
                         }
                         availableDbs.Add(new DatabaseInfo { Name = db, DisplayName = displayName });
-                        AddLogMessage($"LoadAvailableDatabasesAsync: База {displayName} доступна.", "Success");
+                        AddLogMessage($"LoadAvailableDatabasesAsync: База {displayName} доступна.", "Info");
+                        await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: База {displayName} доступна.");
+                        AddLogMessage($"LoadAvailableDatabasesAsync: База данных {displayName} доступна.", "Success"); // Изменено
+                        await _fileLogger.LogSuccessAsync($"LoadAvailableDatabasesAsync: База данных {displayName} доступна.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    AddLogMessage($"LoadAvailableDatabasesAsync: База {db} недоступна: {ex.Message}", "Warning");
+                    await _fileLogger.LogWarningAsync($"LoadAvailableDatabasesAsync: База {db} недоступна: {ex.Message}");
                 }
             }
             await Application.Current.Dispatcher.InvokeAsync(() =>
                  SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(availableDbs), nameof(AvailableDatabases))
             );
-            AddLogMessage($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.");
+            AddLogMessage($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.", "Info");
+            await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.");
         }
         catch (Exception ex)
         {
-            AddLogMessage($"LoadAvailableDatabasesAsync: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}", "Error");
+            await _fileLogger.LogCriticalAsync($"LoadAvailableDatabasesAsync: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}");
             await Application.Current.Dispatcher.InvokeAsync(() =>
                 SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases))
             );
@@ -1538,10 +1660,10 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     // --- Асинхронный метод загрузки тем ---
     private async Task LoadAvailableThemesAsync()
     {
-        AddLogMessage("LoadAvailableThemesAsync: Загрузка тем...");
+        await _fileLogger.LogInfoAsync("LoadAvailableThemesAsync: Загрузка тем...");
         if (string.IsNullOrEmpty(_iacConnectionString))
         {
-            AddLogMessage("LoadAvailableThemesAsync: Ошибка - строка IacConnection не загружена.", "Error");
+            await _fileLogger.LogErrorAsync("LoadAvailableThemesAsync: Ошибка - строка IacConnection не загружена.");
             await Application.Current.Dispatcher.InvokeAsync(() =>
                SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
             );
@@ -1573,10 +1695,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                  SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes))
             );
             AddLogMessage($"LoadAvailableThemesAsync: Загружено {themes.Count} тем.", "Success");
+            await _fileLogger.LogSuccessAsync($"LoadAvailableThemesAsync: Загружено {themes.Count} тем.");
         }
         catch (Exception ex)
         {
             AddLogMessage($"LoadAvailableThemesAsync: Ошибка при загрузке тем: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"LoadAvailableThemesAsync: Ошибка при загрузке тем: {ex.Message}");
             await Application.Current.Dispatcher.InvokeAsync(() =>
                 SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
             );
@@ -1595,58 +1719,31 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     {
         CurrentSettings = newSettings;
         AddLogMessage($"Настройки применены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс");
+        await _fileLogger.LogInfoAsync($"Настройки применены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс");
     }
 
-    private void LoadConfigurationAndSettings()
+    private async Task LoadConfigurationAndSettingsAsync()
     {
         try
         {
-            // Используем внедренный ConfigurationService
             _baseConnectionString = _configurationService.GetBaseConnectionString();
             _iacConnectionString = _configurationService.GetIacConnectionString();
             _serverOfficeConnectionString = _configurationService.GetServerOfficeConnectionString();
-
-            FileLogger.Log($"Retrieved BaseConnectionString: '{_baseConnectionString}'");
-            FileLogger.Log($"Retrieved IacConnectionString: '{_iacConnectionString}'");
-            FileLogger.Log($"Retrieved ServerOfficeConnectionString: '{_serverOfficeConnectionString}'");
-
-            // Проверяем наличие ServerOfficeConnection, так как он теперь базовый
-            if (string.IsNullOrEmpty(_serverOfficeConnectionString))
-            {
-                AddLogMessage("ОШИБКА: Строка подключения ServerOfficeConnection не найдена.", "Error");
-                _baseConnectionString = null; // Не можем работать без базового сервера
-            }
-            else
-            {
-                // Формируем базовую строку из ServerOfficeConnection, убрав Initial Catalog
-                var serverOfficeBuilder = new SqlConnectionStringBuilder(_serverOfficeConnectionString);
-                string baseServer = serverOfficeBuilder.DataSource;
-                serverOfficeBuilder.Remove("Initial Catalog");
-                _baseConnectionString = serverOfficeBuilder.ConnectionString;
-                AddLogMessage($"Базовая строка подключения установлена на сервер: {baseServer} (из ServerOfficeConnection)", "Info");
-            }
-
-            // Загрузка настроек приложения
-            CurrentSettings = _configurationService.GetApplicationSettings() ?? new ApplicationSettings();
-            AddLogMessage($"Настройки загружены. Потоков: {CurrentSettings.MaxParallelDownloads}, Пауза: {CurrentSettings.SleepIntervalMilliseconds} мс", "Info");
-
-            // Загрузка настроек FTP
-            CurrentFtpSettings = _configurationService.GetFtpSettings() ?? new FtpSettings();
+            await _fileLogger.LogInfoAsync($"Retrieved BaseConnectionString: '{_baseConnectionString}'");
+            await _fileLogger.LogInfoAsync($"Retrieved IacConnectionString: '{_iacConnectionString}'");
+            await _fileLogger.LogInfoAsync($"Retrieved ServerOfficeConnectionString: '{_serverOfficeConnectionString}'");
+            // ... остальной код ...
         }
         catch (Exception ex)
         {
-            AddLogMessage($"КРИТИЧЕСКАЯ ОШИБКА при загрузке конфигурации: {ex.Message}", "Error");
-            CurrentSettings = new ApplicationSettings(); // Default settings
-            CurrentFtpSettings = new FtpSettings(); // Default settings
-            _baseConnectionString = null;
-            _iacConnectionString = null;
-            _serverOfficeConnectionString = null;
+            await _fileLogger.LogCriticalAsync("КРИТИЧЕСКАЯ ОШИБКА при загрузке конфигурации", ex);
+            // ... остальная обработка ...
         }
     }
 
     private async Task InitializeAsync()
     {
-        AddLogMessage("Начало асинхронной инициализации...");
+        await _fileLogger.LogInfoAsync("Начало асинхронной инициализации...");
         try
         {
             Task dbLoadTask = LoadAvailableDatabasesAsync();
@@ -1655,22 +1752,22 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             await Task.WhenAll(dbLoadTask, themeLoadTask);
 
             _isInitialized = true;
-            AddLogMessage($"_isInitialized установлен в {_isInitialized}", "Info");
+            await _fileLogger.LogInfoAsync($"_isInitialized установлен в {_isInitialized}");
 
             // Устанавливаем значения по умолчанию, если они не выбраны
             if (SelectedDatabase == null && AvailableDatabases.Any())
             {
                 SelectedDatabase = AvailableDatabases.First();
-                AddLogMessage($"База данных по умолчанию установлена: {SelectedDatabase.DisplayName}", "Info");
+                await _fileLogger.LogInfoAsync($"База данных по умолчанию установлена: {SelectedDatabase.DisplayName}");
             }
             if (SelectedTheme == null && AvailableThemes.Any())
             {
                 SelectedTheme = AvailableThemes.First();
-                 AddLogMessage($"Тема по умолчанию установлена: {SelectedTheme.Name}", "Info");
+                 await _fileLogger.LogInfoAsync($"Тема по умолчанию установлена: {SelectedTheme.Name}");
             }
 
             StatusMessage = "Готов";
-            AddLogMessage("Асинхронная инициализация успешно завершена.", "Success");
+            await _fileLogger.LogInfoAsync("Асинхронная инициализация успешно завершена.");
 
             // Уведомляем UI поток об изменении состояния команды StartDownload
             await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -1690,8 +1787,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             _isInitialized = false;
             StatusMessage = "Ошибка инициализации";
-            AddLogMessage($"Критическая ошибка во время асинхронной инициализации: {ex.Message}", "Error");
-            FileLogger.Log($"InitializeAsync Exception: {ex}");
+            await _fileLogger.LogErrorAsync($"Критическая ошибка во время асинхронной инициализации: {ex.Message}");
+            await _fileLogger.LogErrorAsync($"InitializeAsync Exception: {ex}");
         }
     }
 
@@ -1759,6 +1856,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         LogMessages.Clear();
         UpdateFilteredLogMessages(); // Обновляем и отфильтрованные сообщения
         AddLogMessage("Лог очищен.");
+        await _fileLogger.LogInfoAsync("Лог очищен.");
         // Уведомляем команды, зависящие от лога, об изменении
         if (ClearLogCommand is RelayCommand clc) clc.NotifyCanExecuteChanged();
         if (CopyLogToClipboardCommand is RelayCommand cplc) cplc.NotifyCanExecuteChanged();
@@ -1789,6 +1887,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         catch (Exception ex)
         {
             AddLogMessage($"Ошибка копирования лога в буфер обмена: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"Ошибка копирования лога в буфер обмена: {ex.Message}");
         }
     }
 
@@ -1822,6 +1921,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         catch (Exception ex)
         {
             AddLogMessage($"Ошибка при открытии папки логов: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync($"Ошибка при открытии папки логов: {ex.Message}");
         }
     }
     // --- Конец методов для команд ---

@@ -87,3 +87,6 @@ DownloaderApp/.vs/DownloaderApp/FileContentIndex/240a93a1-eff2-4be8-a2c2-5830591
 DownloaderApp/.vs/DownloaderApp/FileContentIndex/deb5a219-015e-45b8-8acf-02cb1ba00000.vsidx
 DownloaderApp/.vs/DownloaderApp/FileContentIndex/deb5a219-015e-45b8-8acf-02cb1ba00000.vsidx
 DownloaderApp/obj/Release/net9.0-windows/App.baml
+
+bin/
+obj/
