@@ -610,12 +610,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     using (SqlConnection conBase = new SqlConnection(targetDbConnectionString))
                     {
                         await conBase.OpenAsync(token);
-                        dtTab = await FetchFileListAsync(targetDbConnectionString, dtB, dtE, themeId, token);
+                        dtTab = await FetchFileListAsync(targetDbConnectionString, dtB, dtE, themeId, srcID, token);
                         currentTotalFiles = dtTab?.Rows.Count ?? 0;
+                        // Логируем количество полученных файлов
+                        await _fileLogger.LogDebugAsync($"StartDownloadAsync: FetchFileListAsync вернул {currentTotalFiles} строк.");
 
                         if (firstCheck && currentTotalFiles > 0)
                         {
                             TotalFiles = currentTotalFiles;
+                            // Логируем установку TotalFiles
+                            await _fileLogger.LogInfoAsync($"StartDownloadAsync: TotalFiles установлен в {TotalFiles}");
                             AddLogMessage($"Обнаружено {TotalFiles} файлов для обработки за период.");
                             await _fileLogger.LogInfoAsync($"Обнаружено {TotalFiles} файлов для обработки за период.");
                             if (basePath == null && srcID == 0 && dtTab.Rows.Count > 0)
@@ -793,12 +797,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async void UiUpdateTimer_Tick(object sender, EventArgs e)
     {
+        // Логируем срабатывание таймера
+        await _fileLogger.LogDebugAsync("UiUpdateTimer_Tick: Таймер сработал.");
         await UpdateUiFromTimerTick();
     }
 
     private async Task UpdateUiFromTimerTick()
     {
+        // Логируем вход в метод обновления UI
+        await _fileLogger.LogDebugAsync("UpdateUiFromTimerTick: Вход в метод.");
         long currentTotalProcessed = Interlocked.Read(ref _processedFilesCounter);
+        // Логируем текущее значение счетчика
+        await _fileLogger.LogDebugAsync($"UpdateUiFromTimerTick: _processedFilesCounter = {currentTotalProcessed}");
         if (currentTotalProcessed != _lastProcessedCountForUI)
         {
             ProcessedFiles = (int)currentTotalProcessed;
@@ -818,17 +828,33 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         {
             foreach (var kvp in datesToUpdate)
             {
-                if (_fileCountsDict.TryGetValue(kvp.Key, out var dailyStat))
+                var dateKey = kvp.Key; // Используем отдельную переменную для ключа даты
+                var countToAdd = kvp.Value;
+                // Логируем попытку обновления для даты
+                await _fileLogger.LogDebugAsync($"UpdateUiFromTimerTick: Попытка обновить дату {dateKey:dd.MM.yyyy}, добавить {countToAdd} шт.");
+                
+                if (_fileCountsDict.TryGetValue(dateKey, out var dailyStat))
                 {
-                    dailyStat.ProcessedCount += kvp.Value;
+                    // Логируем текущее значение и добавляемое
+                    await _fileLogger.LogDebugAsync($"UpdateUiFromTimerTick: Найдена статистика для {dateKey:dd.MM.yyyy}. Текущий ProcessedCount={dailyStat.ProcessedCount}. Добавляем {countToAdd}.");
+                    dailyStat.ProcessedCount += countToAdd;
                 }
                 else
                 {
-                    AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}.", "Warning");
-                    await _fileLogger.LogInfoAsync($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}.");
-                    var statFromList = FileCountsPerDate.FirstOrDefault(d => d.Date == kvp.Key);
+                    // Логируем, что статистика не найдена в словаре
+                    await _fileLogger.LogWarningAsync($"UpdateUiFromTimerTick: Не найдена статистика в СЛОВАРЕ для даты {dateKey:dd.MM.yyyy}. Попытка найти в списке...");
+                    AddLogMessage($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {dateKey:dd.MM.yyyy}.", "Warning");
+                    // await _fileLogger.LogInfoAsync($"UpdateUiFromTimerTick: Не найдена статистика в словаре для даты {kvp.Key:dd.MM.yyyy}."); // Дублирующее сообщение
+                    var statFromList = FileCountsPerDate.FirstOrDefault(d => d.Date == dateKey);
                     if (statFromList != null)
-                        statFromList.ProcessedCount += kvp.Value;
+                    {
+                        await _fileLogger.LogDebugAsync($"UpdateUiFromTimerTick: Найдена статистика в СПИСКЕ для {dateKey:dd.MM.yyyy}. Текущий ProcessedCount={statFromList.ProcessedCount}. Добавляем {countToAdd}.");
+                        statFromList.ProcessedCount += countToAdd;
+                    }
+                    else
+                    {
+                         await _fileLogger.LogErrorAsync($"UpdateUiFromTimerTick: Статистика для {dateKey:dd.MM.yyyy} НЕ НАЙДЕНА ни в словаре, ни в списке!");
+                    }
                 }
             }
         }
@@ -1158,10 +1184,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
 
-    private async Task<DataTable> FetchFileListAsync(string connectionString, DateTime dtB, DateTime dtE, int themeId, CancellationToken token)
+    private async Task<DataTable> FetchFileListAsync(string connectionString, DateTime dtB, DateTime dtE, int themeId, int srcID, CancellationToken token)
     {
         DataTable dtTab = new DataTable();
-        // Используем переданную строку подключения
         using (SqlConnection conBase = new SqlConnection(connectionString))
         {
             await conBase.OpenAsync(token);
@@ -1171,7 +1196,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 cmd.Parameters.AddWithValue("@themeID", themeId);
                 cmd.Parameters.AddWithValue("@dtB", dtB);
                 cmd.Parameters.AddWithValue("@dtE", dtE);
-                cmd.Parameters.AddWithValue("@srcID", 1); // Используем 1, как в примере хранимой процедуры
+                cmd.Parameters.AddWithValue("@srcID", srcID); // Используем переданный srcID
 
                 using (SqlDataReader reader = await cmd.ExecuteReaderAsync(token))
                 {
@@ -1198,8 +1223,10 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         // Удалено извлечение несуществующих столбцов:
         // documentMetaPathID, pthDocument, flDocumentOriginal, ftp, fileNameFtp
 
-        long currentCount = Interlocked.Increment(ref _processedFilesCounter);
-        bool shouldUpdateUI = currentCount % 5 == 0;
+        // Удаляем инкремент счетчика отсюда
+        // long currentCount = Interlocked.Increment(ref _processedFilesCounter);
+        // Проверяем текущее значение счетчика для редкого логирования
+        bool shouldUpdateUI = _processedFilesCounter % 5 == 0; 
 
         // Логика суффикса остается
         string suffixName = "";
@@ -1483,6 +1510,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     }
 
                     // Обновляем флаг загрузки в базе данных для ИСХОДНОГО файла (архива или нет)
+                    Exception flagUpdateException = null; // Переменная для отслеживания ошибки обновления флага
                     try
                     {
                         AddLogMessage($"Обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
@@ -1492,27 +1520,39 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     }
                     catch (Exception updateEx)
                     {
+                        flagUpdateException = updateEx; // Запоминаем ошибку
                         // Используем переменную updateEx для логирования
                         _logger.Error(updateEx, $"Ошибка при первой попытке обновления флага для файла ID: {documentMetaID} в базе {databaseName}");
                         // Внутренняя попытка обновления флага
                         try
                         {
-                            AddLogMessage($"Обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
+                            AddLogMessage($"Повторное обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
                             await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, documentMetaID, token);
-                            AddLogMessage($"Флаг для файла ID: {documentMetaID} успешно обновлен.", "Success");
-                            await _fileLogger.LogSuccessAsync($"Флаг для файла ID: {documentMetaID} успешно обновлен.");
+                            AddLogMessage($"Флаг для файла ID: {documentMetaID} успешно обновлен (повторно).", "Success");
+                            await _fileLogger.LogSuccessAsync($"Флаг для файла ID: {documentMetaID} успешно обновлен (повторно).");
+                            flagUpdateException = null; // Сбрасываем ошибку, т.к. вторая попытка удалась
                         }
                         catch (Exception innerUpdateEx)
                         {
-                            _logger.Error(innerUpdateEx, $"Ошибка при обновлении флага загрузки для файла ID: {documentMetaID} в базе {databaseName}");
+                            _logger.Error(innerUpdateEx, $"Ошибка при повторном обновлении флага загрузки для файла ID: {documentMetaID} в базе {databaseName}");
                             AddLogMessage($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {innerUpdateEx.Message}", "Error");
                             await _fileLogger.LogErrorAsync($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {innerUpdateEx.Message}");
-                            // Решаем, что делать дальше. Возможно, стоит перебросить исключение,
-                            // чтобы обработка файла считалась неуспешной в целом?
-                            // Пока просто логируем и продолжаем.
+                             // Оставляем flagUpdateException = updateEx (или innerUpdateEx? Логичнее inner)
+                             flagUpdateException = innerUpdateEx; 
                         }
                     }
-
+                    
+                    // Инкрементируем счетчик и добавляем дату ТОЛЬКО ЕСЛИ обновление флага было успешным
+                    if (flagUpdateException == null) 
+                    {
+                         Interlocked.Increment(ref _processedFilesCounter);
+                        _processedDatesSinceLastUpdate.Enqueue(publishDate.Date); 
+                        await _fileLogger.LogDebugAsync($"Счетчик увеличен ({_processedFilesCounter}), дата {publishDate:dd.MM.yyyy} добавлена в очередь.");
+                    }
+                    else
+                    {
+                        await _fileLogger.LogWarningAsync($"Обработка файла ID {documentMetaID} завершена, НО флаг не обновлен из-за ошибки. Счетчик НЕ увеличен.");
+                    }
 
                 }
                 catch (Exception ex) // Внутренний catch для ошибок скачивания/проверки
@@ -1549,7 +1589,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     .ToList();
             });
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            // Добавляем async к лямбда-выражению
+            await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
                 FileCountsPerDate.Clear();
                 _fileCountsDict.Clear();
@@ -1559,6 +1600,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     FileCountsPerDate.Add(newStat);
                     _fileCountsDict.Add(item.Date, newStat);
                 }
+                // Логируем количество инициализированных дат
+                await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Инициализировано {_fileCountsDict.Count} дат в словаре.");
                 AddLogMessage($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
             });
         }
