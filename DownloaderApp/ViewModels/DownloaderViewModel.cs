@@ -1028,12 +1028,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             {
                 _filteredLogMessages.Add(message);
             }
-            AddLogMessage($"UpdateFilteredLogMessages: Добавлено {messagesToShow.Count()} сообщений.", "Info");
-            await _fileLogger.LogInfoAsync($"UpdateFilteredLogMessages: Добавлено {messagesToShow.Count()} сообщений.");
         }
         catch (Exception ex)
         {
-            AddLogMessage($"Ошибка в UpdateFilteredLogMessages: {ex}");
+            // Логируем ошибку самого метода обновления
+            Debug.WriteLine($"[ERROR] Ошибка в UpdateFilteredLogMessages: {ex}"); 
+            // Можно также добавить запись в основной лог, если нужно, но осторожно
+            // await _fileLogger?.LogErrorAsync("Ошибка в UpdateFilteredLogMessages", ex); 
         }
     }
 
@@ -1497,71 +1498,87 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         };
                     bool isArchive = archiveExtensions.Contains("." + expName);
 
+                    // Обработка архива (если это архив)
+                    bool skipSuccessUpdate = false; // Флаг для пропуска обновления статуса успеха
                     if (isArchive)
                     {
                         try
                         {
-                            AddLogMessage($"Распаковка архива: {fileDocument} в {pathDocument}", "Info");
-                            // Вызываем новый универсальный метод
-                            _archiveService.ExtractArchive(fileDocument, pathDocument, true); // true - разрешаем перезапись
-                                                                                              // Удаление архива после успешной распаковки
-                            try { File.Delete(fileDocument); AddLogMessage($"Исходный архив удален: {fileDocument}", "Info"); } catch (Exception delEx) { _logger.Warn(delEx, $"Не удалось удалить исходный архив {fileDocument}"); }
+                            // Получаем директорию, куда распаковывать (та же, где лежит архив)
+                            string extractionPath = Path.GetDirectoryName(fileDocument);
+                            if (string.IsNullOrEmpty(extractionPath))
+                            {
+                                throw new DirectoryNotFoundException($"Не удалось определить директорию для распаковки файла {fileDocument}");
+                            }
+
+                            AddLogMessage($"Распаковка архива: {fileDocument} в {extractionPath}");
+                            await _fileLogger.LogInfoAsync($"Распаковка архива: {fileDocument} в {extractionPath}");
+
+                            // Используем СИНХРОННЫЙ метод, т.к. асинхронного нет
+                            _archiveService.ExtractArchive(fileDocument, extractionPath, true); // true - разрешаем перезапись
+
+                            AddLogMessage($"Архив '{originalFileName}' успешно распакован.");
+                            await _fileLogger.LogInfoAsync($"Архив '{originalFileName}' успешно распакован.");
+
+                            // Опционально: Удаление архива после успешной распаковки - Удалено из-за ошибки компиляции (нет свойства)
+                            // if (CurrentSettings.DeleteArchiveAfterExtraction)
+                            // {
+                            //     try
+                            //     {
+                            //         File.Delete(fileDocument);
+                            //         AddLogMessage($"Архив '{fileDocument}' удален после распаковки.");
+                            //         await _fileLogger.LogInfoAsync($"Архив '{fileDocument}' удален после распаковки.");
+                            //     }
+                            //     catch (Exception delEx)
+                            //     {
+                            //         AddLogMessage($"Не удалось удалить архив '{fileDocument}' после распаковки: {delEx.Message}", "Warning");
+                            //         await _fileLogger.LogWarningAsync($"Не удалось удалить архив '{fileDocument}' после распаковки: {delEx.Message}");
+                            //     }
+                            // }
                         }
+                        catch (OperationCanceledException) { throw; } // Пробрасываем отмену
                         catch (Exception archiveEx)
                         {
-                            // Если распаковка не удалась, логируем ошибку, но НЕ прерываем процесс,
-                            // чтобы флаг для самого архива все равно был обновлен в базе.
-                            _logger.Error(archiveEx, $"Ошибка при распаковке архива {fileDocument}");
-                            AddLogMessage($"Ошибка распаковки архива '{originalFileName}': {archiveEx.Message}", "Error");
-                            await _fileLogger.LogErrorAsync($"Ошибка распаковки архива '{originalFileName}': {archiveEx.Message}");
+                            // ПРОВЕРКА НА НЕПОЛНЫЙ АРХИВ
+                            if (archiveEx.Message.Contains("ArchiveEntry is incomplete", StringComparison.OrdinalIgnoreCase))
+                            {
+                                AddLogMessage($"Предупреждение: Файл '{originalFileName}' является неполной частью архива. Обработка файла прервана до обновления статуса.", "Warning");
+                                await _fileLogger.LogWarningAsync($"Предупреждение: Файл '{originalFileName}' является неполной частью архива. Обработка файла прервана до обновления статуса.");
+                                skipSuccessUpdate = true; // Устанавливаем флаг, чтобы пропустить обновление статуса IsProcessed
+                            }
+                            else // Другие ошибки распаковки
+                            {
+                                AddLogMessage($"Ошибка при распаковке архива '{originalFileName}': {archiveEx.Message}", "Error");
+                                await _fileLogger.LogErrorAsync($"Ошибка при распаковке архива '{originalFileName}': {archiveEx.Message}", archiveEx);
+                                // Если не игнорируем ошибки, выбрасываем исключение дальше, чтобы остановить обработку этого файла
+                                if (!IgnoreDownloadErrors)
+                                {
+                                    throw;
+                                }
+                                else
+                                {
+                                    AddLogMessage($"Ошибка распаковки '{originalFileName}' проигнорирована.", "Warning");
+                                    await _fileLogger.LogWarningAsync($"Ошибка распаковки '{originalFileName}' проигнорирована.");
+                                    // Ошибка проигнорирована, но файл не обработан успешно, поэтому статус не обновляем.
+                                    // skipSuccessUpdate остается false, но мы не дойдем до блока обновления статуса из-за throw или потому что файл не обработан
+                                }
+                            }
                         }
                     }
 
-                    // Обновляем флаг загрузки в базе данных для ИСХОДНОГО файла (архива или нет)
-                    Exception flagUpdateException = null; // Переменная для отслеживания ошибки обновления флага
-                    try
+                    // Обновление статуса в БД ТОЛЬКО если не было ошибки неполного архива и скачивание было успешным
+                    if (!skipSuccessUpdate)
                     {
-                        AddLogMessage($"Обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
+                        // Используем метод из DatabaseService
                         await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, documentMetaID, token);
-                        AddLogMessage($"Флаг для файла ID: {documentMetaID} успешно обновлен.", "Success");
-                        await _fileLogger.LogSuccessAsync($"Флаг для файла ID: {documentMetaID} успешно обновлен.");
-                    }
-                    catch (Exception updateEx)
-                    {
-                        flagUpdateException = updateEx; // Запоминаем ошибку
-                        // Используем переменную updateEx для логирования
-                        _logger.Error(updateEx, $"Ошибка при первой попытке обновления флага для файла ID: {documentMetaID} в базе {databaseName}");
-                        // Внутренняя попытка обновления флага
-                        try
-                        {
-                            AddLogMessage($"Повторное обновление флага загрузки для файла ID: {documentMetaID} в базе {databaseName}...", "Info");
-                            await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, documentMetaID, token);
-                            AddLogMessage($"Флаг для файла ID: {documentMetaID} успешно обновлен (повторно).", "Success");
-                            await _fileLogger.LogSuccessAsync($"Флаг для файла ID: {documentMetaID} успешно обновлен (повторно).");
-                            flagUpdateException = null; // Сбрасываем ошибку, т.к. вторая попытка удалась
-                        }
-                        catch (Exception innerUpdateEx)
-                        {
-                            _logger.Error(innerUpdateEx, $"Ошибка при повторном обновлении флага загрузки для файла ID: {documentMetaID} в базе {databaseName}");
-                            AddLogMessage($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {innerUpdateEx.Message}", "Error");
-                            await _fileLogger.LogErrorAsync($"Не удалось обновить флаг загрузки для файла '{originalFileName}'. Ошибка: {innerUpdateEx.Message}");
-                             // Оставляем flagUpdateException = updateEx (или innerUpdateEx? Логичнее inner)
-                             flagUpdateException = innerUpdateEx; 
-                        }
-                    }
-                    
-                    // Инкрементируем счетчик и добавляем дату ТОЛЬКО ЕСЛИ обновление флага было успешным
-                    if (flagUpdateException == null) 
-                    {
-                         Interlocked.Increment(ref _processedFilesCounter);
-                        _processedDatesSinceLastUpdate.Enqueue(publishDate.Date); 
-                        await _fileLogger.LogDebugAsync($"Счетчик увеличен ({_processedFilesCounter}), дата {publishDate:dd.MM.yyyy} добавлена в очередь.");
-                    }
-                    else
-                    {
-                        await _fileLogger.LogWarningAsync($"Обработка файла ID {documentMetaID} завершена, НО флаг не обновлен из-за ошибки. Счетчик НЕ увеличен.");
-                    }
+                        // Инкремент счетчика и обновление статистики происходит в StartDownloadAsync после успешного завершения этого Task.Run
 
+                        if (shouldUpdateUI) // Логируем успех только периодически
+                        {
+                           AddLogMessage($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.");
+                           await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.");
+                        }
+                    }
                 }
                 catch (Exception ex) // Внутренний catch для ошибок скачивания/проверки
                 {
