@@ -89,23 +89,6 @@ public class DailyFileCount : INotifyPropertyChanged
 
 enum CircuitBreakerState { Closed, Open, HalfOpen }
 
-internal record FileMetadataRecord(
-    int DocumentMetaID,
-    string Url,
-    DateTime PublishDate,
-    string ComputerName,
-    string DirectoryName,
-    int DocumentMetaPathID,
-    string PathDirectory,
-    string FlDocument,
-    string Ftp,
-    string FileNameFtp,
-    string FileName,
-    string ExpName,
-    string DocDescription,
-    object UrlID
-);
-
 public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 {
     private DatabaseService _databaseService;
@@ -587,7 +570,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
         string databaseName = SelectedDatabase.Name;
         int themeId = SelectedTheme.Id;
-        int srcID = SelectedSourceId;
+        int srcID = 0;
         bool flProv = CheckProvError;
         DateTime dtB = BeginDate.Date;
         DateTime dtE = EndDate.Date.AddDays(1).AddTicks(-1);
@@ -1311,32 +1294,56 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task ProcessFileAsync(DataRow row, string targetDbConnectionString, string iacConnectionString, string databaseName, int srcID, bool flProv, int themeId, CancellationToken token, IProgress<double> progress)
     {
-        // --- Извлечение данных, ДОСТУПНЫХ из documentMetaDownloadList --- 
+        // --- Используем только значения, возвращённые процедурой --- 
         int documentMetaID = GetValueOrDefault<int>(row, "documentMetaID"); 
-        string url = GetValueOrDefault<string>(row, "url");
-        DateTime publishDate = GetValueOrDefault<DateTime>(row, "publishDate", DateTime.MinValue); 
-        string computerName = GetValueOrDefault<string>(row, "computerName");
-        string directoryName = GetValueOrDefault<string>(row, "directoryName");
+        string pathDirectory = GetValueOrDefault<string>(row, "pathDirectory");
         string originalFileName = GetValueOrDefault<string>(row, "fileName");
-        string expName = GetValueOrDefault<string>(row, "expName"); // Для имени файла
-        string docDescriptionFromList = GetValueOrDefault<string>(row, "docDescription"); // Описание из списка (может отличаться от полного)
-
-        bool shouldUpdateUI = _processedFilesCounter % 5 == 0; 
-
-        string pathDirectory = GetValueOrDefault<string>(row, "PathDirectory");
+        themeId = GetValueOrDefault<int>(row, "themeID", 0);
+        DateTime publishDate = GetValueOrDefault<DateTime>(row, "publishDate", DateTime.MinValue);
+        await _fileLogger.LogDebugAsync($"DEBUG: Извлечён pathDirectory='{pathDirectory}', fileName='{originalFileName}' для ID={documentMetaID}");
+        // Fallback: если pathDirectory пустой, формируем путь вручную по старому шаблону
         if (string.IsNullOrWhiteSpace(pathDirectory))
         {
-            AddLogMessage($"Ошибка: PathDirectory отсутствует для файла '{originalFileName}' (ID: {documentMetaID})", "Error");
-            await _fileLogger.LogErrorAsync($"PathDirectory отсутствует для файла '{originalFileName}' (ID: {documentMetaID})");
+            string computerName = GetValueOrDefault<string>(row, "computerName");
+            string directoryName = GetValueOrDefault<string>(row, "directoryName");
+            await _fileLogger.LogDebugAsync($"DEBUG: fallback: computerName='{computerName}', directoryName='{directoryName}', themeId={themeId}, publishDate={publishDate:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(computerName) && !string.IsNullOrWhiteSpace(directoryName) && themeId > 0 && publishDate != DateTime.MinValue)
+            {
+                pathDirectory = $@"\\{computerName}\{directoryName}\{themeId}\{publishDate:yyyy}\{publishDate:MM}\{publishDate:dd}\";
+                await _fileLogger.LogWarningAsync($"pathDirectory был пуст, сформирован вручную: {pathDirectory}");
+            }
+            else
+            {
+                await _fileLogger.LogWarningAsync($"Не удалось сформировать pathDirectory: отсутствуют необходимые данные. computerName='{computerName}', directoryName='{directoryName}', themeId={themeId}, publishDate={publishDate:yyyy-MM-dd}");
+            }
+        }
+        string fileExtension = Path.GetExtension(originalFileName);
+        string newFileName = $"{documentMetaID}{fileExtension}";
+        // --- Удаляем самостоятельное формирование пути ---
+        if (string.IsNullOrWhiteSpace(pathDirectory) || string.IsNullOrWhiteSpace(originalFileName))
+        {
+            if (string.IsNullOrWhiteSpace(pathDirectory))
+                await _fileLogger.LogErrorAsync($"pathDirectory ПУСТОЙ для файла (ID: {documentMetaID})");
+            if (string.IsNullOrWhiteSpace(originalFileName))
+                await _fileLogger.LogErrorAsync($"fileName ПУСТОЙ для файла (ID: {documentMetaID})");
+            AddLogMessage($"Ошибка: pathDirectory или fileName отсутствуют для файла (ID: {documentMetaID})", "Error");
+            await _fileLogger.LogErrorAsync($"pathDirectory или fileName отсутствуют для файла (ID: {documentMetaID})");
             return;
         }
-string fileDocument = Path.Combine(pathDirectory, originalFileName);
+        await _fileLogger.LogDebugAsync($"DEBUG: Формируем путь для сохранения: Path.Combine('{pathDirectory}', '{newFileName}')");
+        string fileDocument = Path.Combine(pathDirectory, newFileName);
+
+        bool shouldUpdateUI = _processedFilesCounter % 5 == 0; 
 
         try // Основной try для ProcessFileAsync
         {
             if (flProv == false)
             {
                 string dirOfFile = Path.GetDirectoryName(fileDocument);
+                // Логируем все переменные, участвующие в формировании пути
+                await _fileLogger.LogDebugAsync($"DEBUG: Формирование пути для файла. computerName='{Environment.UserName}', directoryName='{Path.GetFileName(dirOfFile)}', pathDirectory='{pathDirectory}', fileDocument='{fileDocument}', dirOfFile='{dirOfFile}'");
+                await _fileLogger.LogDebugAsync($"DEBUG: Directory.Exists(dirOfFile)={Directory.Exists(dirOfFile)}");
+                await _fileLogger.LogDebugAsync($"DEBUG: Текущий пользователь: {Environment.UserName}");
                 if (!string.IsNullOrEmpty(dirOfFile))
                 {
                     Directory.CreateDirectory(dirOfFile);
@@ -1354,10 +1361,6 @@ string fileDocument = Path.Combine(pathDirectory, originalFileName);
                     File.Delete(fileDocument);
                 }
 
-                if (shouldUpdateUI)
-                {
-                    AddLogMessage($"Скачивание: {url} -> {fileDocument}");
-                }
 
                 long fileSize = 0;
                 DownloadResult downloadResult = null;
@@ -1401,7 +1404,7 @@ string fileDocument = Path.Combine(pathDirectory, originalFileName);
                             await _fileLogger.LogInfoAsync($"Попытка скачивания #{attempt} для: {originalFileName}");
                         }
 
-                        downloadResult = await WebGetAsync(url, fileDocument, token, progress);
+                        downloadResult = await WebGetAsync(fileDocument, fileDocument, token, progress);
 
                         if (downloadResult.Success)
                         {
@@ -1522,38 +1525,25 @@ string fileDocument = Path.Combine(pathDirectory, originalFileName);
                     // ... (логика обработки архивов, если включена) ...
                     // if (isArchive) { ... } 
                     // else // Если это не архив (обычный файл)
-                    {
-                        await _fileLogger.LogDebugAsync($"DEBUG: Файл '{originalFileName}' (ID: {documentMetaID}) не является архивом. Попытка вставки метаданных.");
-                        try
-                        {
-                            // --- ЗАПОЛНЕНИЕ МОДЕЛИ AttachmentModel ---
-                            var attachment = new AttachmentModel
-                            {
-
-                            };
-                        }
-                        catch (Exception ex)
-                        {
-                        }
-
+                    
                     // Обновление статуса в БД
                     if (!skipSuccessUpdate)
+                    {
+                        int idToUpdateFlag = documentMetaID; // Используем documentMetaID для обновления флага
+                        await _fileLogger.LogDebugAsync($"DEBUG: Флаг isProcessed будет обновлен для ID: {idToUpdateFlag}. skipSuccessUpdate={skipSuccessUpdate}.");
+                        await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, idToUpdateFlag, token);
+
+                        if (shouldUpdateUI)
                         {
-                            int idToUpdateFlag = documentMetaID; // Используем documentMetaID для обновления флага
-                            await _fileLogger.LogDebugAsync($"DEBUG: Флаг isProcessed будет обновлен для ID: {idToUpdateFlag}. skipSuccessUpdate={skipSuccessUpdate}.");
-                            await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, idToUpdateFlag, token);
-
-                            if (shouldUpdateUI)
-                            {
-                                AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
-                                await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
-                            }
+                            AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
+                            await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
                         }
-
-                        return;
                     }
+
+                    return;
                 }
-                catch (Exception downloadEx) { throw; }
+                catch (Exception ex) {
+                    }
             }
             else // Если flProv == true
             {
