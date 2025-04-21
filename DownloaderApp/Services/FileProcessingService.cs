@@ -17,9 +17,19 @@ namespace DownloaderApp.Services
             string computerName = row["computerName"].ToString();
 
             // Логика обработки файла
-            string filePath = Path.Combine(computerName, directoryName, fileName);
-            if (!File.Exists(filePath))
-            {
+            string filePath = "";
+            if (row.Table.Columns.Contains("PathDirectory")) {
+                filePath = row["PathDirectory"] == DBNull.Value ? "" : row["PathDirectory"].ToString().Trim();
+            }
+            if (string.IsNullOrEmpty(filePath)) {
+                // Фallback: если PathDirectory отсутствует или пуст, пытаемся сформировать путь локально
+                if (string.IsNullOrEmpty(computerName) || string.IsNullOrEmpty(directoryName) || string.IsNullOrEmpty(fileName)) {
+                    // Отсутствуют необходимые данные для формирования пути, пропускаем обработку файла
+                    return;
+                }
+                filePath = Path.Combine(computerName, directoryName, fileName);
+            }
+            if (!File.Exists(filePath)) {
                 // Скачивание файла или другая логика
                 // ...
             }

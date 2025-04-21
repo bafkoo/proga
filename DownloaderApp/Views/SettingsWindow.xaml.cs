@@ -1,6 +1,6 @@
 using System.Windows;
-using FileDownloader.ViewModels;
-using FileDownloader.Models;
+using DownloaderApp.ViewModels;
+using DownloaderApp.Models;
 using MahApps.Metro.Controls;
 
 namespace FileDownloader.Views;

@@ -1,5 +1,5 @@
 using System.Windows;
-using FileDownloader.ViewModels;
+using DownloaderApp.ViewModels;
 using MahApps.Metro.Controls;
 using DownloaderApp.Infrastructure.Logging;
 using System.Threading.Tasks;

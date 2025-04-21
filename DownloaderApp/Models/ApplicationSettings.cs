@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using DownloaderApp.Interfaces;
 
-namespace FileDownloader.Models;
+namespace DownloaderApp.Models;
 
 // Простой класс для хранения настроек, используемых в UI
 public class ApplicationSettings
@@ -10,6 +10,7 @@ public class ApplicationSettings
     public int ProcessId { get; set; }
     public int SleepIntervalMilliseconds { get; set; }
     public int MaxParallelDownloads { get; set; } = 5; // Увеличено с 2 до 5 для ускорения загрузки
+    public string DownloadPath { get; set; }
     public bool DeleteArchiveAfterExtraction { get; set; } = false; // Новая настройка: удалять ли архив после распаковки
 
     // Настройки FTP (можно добавить больше, если нужно)
@@ -34,6 +35,7 @@ public class ApplicationSettings
         ProcessId = source.ProcessId;
         SleepIntervalMilliseconds = source.SleepIntervalMilliseconds;
         MaxParallelDownloads = source.MaxParallelDownloads;
+        DownloadPath = source.DownloadPath;
         DeleteArchiveAfterExtraction = source.DeleteArchiveAfterExtraction; // Копируем новую настройку
         FtpHost = source.FtpHost;
         FtpPort = source.FtpPort;

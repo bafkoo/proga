@@ -3,7 +3,6 @@ using System.IO;
 using Microsoft.Extensions.Configuration;
 using DownloaderApp.Interfaces;
 using DownloaderApp.Models;
-using FileDownloader.Models;
 using DownloaderApp.Services;
 
 

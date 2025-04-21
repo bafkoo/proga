@@ -1,4 +1,4 @@
-namespace FileDownloader.Models;
+namespace DownloaderApp.Models;
 
 public class FtpSettings
 {

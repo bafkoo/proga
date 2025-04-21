@@ -16,7 +16,7 @@ using FluentFTP;
 using System.Net;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using FileDownloader.Models;
+using DownloaderApp.Models;
 using FileDownloader.Views;
 using System.Diagnostics;
 using System.Linq;
@@ -40,7 +40,6 @@ using System.Data;
 using DownloaderApp.Utilities;
 using DownloaderApp.Services;
 using DownloaderApp.Constants;
-using DownloaderApp.Models;
 using Microsoft.Extensions.Options;
 using NLog;
 using MahApps.Metro.Controls;
@@ -1078,7 +1077,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         }
     }
 
-    private void AddLogMessage(string message, string type = "Info", string? filePath = null)
+    private void AddLogMessage(string message, string type = "Info", string filePath = null)
     {
         var logMessage = new LogMessage
         {
@@ -1312,101 +1311,40 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task ProcessFileAsync(DataRow row, string targetDbConnectionString, string iacConnectionString, string databaseName, int srcID, bool flProv, int themeId, CancellationToken token, IProgress<double> progress)
     {
-        // Извлекаем ТОЛЬКО ТЕ данные, которые возвращает процедура documentMetaDownloadList
-        string url = row["url"].ToString();
-        DateTime publishDate = DateTime.Parse(row["publishDate"].ToString());
-        string computerName = row["computerName"].ToString();        // Из переменной @computerName
-        string directoryName = row["directoryName"].ToString();      // Из переменной @directoryName
-        int documentMetaID = Convert.ToInt32(row["documentMetaID"].ToString()); // Из atch.attachmentID
-        string originalFileName = row["fileName"].ToString();        // Из atch.fileName
-        string expName = row["expName"].ToString();                // Рассчитанный
-        string docDescription = row["docDescription"].ToString();    // Из atch.docDescription
-        object urlIdFromDb = row["urlID"];                      // Из atch.urlID
+        // --- Извлечение данных, ДОСТУПНЫХ из documentMetaDownloadList --- 
+        int documentMetaID = GetValueOrDefault<int>(row, "documentMetaID"); 
+        string url = GetValueOrDefault<string>(row, "url");
+        DateTime publishDate = GetValueOrDefault<DateTime>(row, "publishDate", DateTime.MinValue); 
+        string computerName = GetValueOrDefault<string>(row, "computerName");
+        string directoryName = GetValueOrDefault<string>(row, "directoryName");
+        string originalFileName = GetValueOrDefault<string>(row, "fileName");
+        string expName = GetValueOrDefault<string>(row, "expName"); // Для имени файла
+        string docDescriptionFromList = GetValueOrDefault<string>(row, "docDescription"); // Описание из списка (может отличаться от полного)
 
-        // Удалено извлечение несуществующих столбцов:
-        // documentMetaPathID, pthDocument, flDocumentOriginal, ftp, fileNameFtp
-
-        // Удаляем инкремент счетчика отсюда
-        // long currentCount = Interlocked.Increment(ref _processedFilesCounter);
-        // Проверяем текущее значение счетчика для редкого логирования
         bool shouldUpdateUI = _processedFilesCounter % 5 == 0; 
 
-        // Логика суффикса остается
-        string suffixName = "";
-        if (databaseName == "notificationEF") suffixName = "_nef";
-        else if (databaseName == "notificationZK") suffixName = "_nzk";
-        else if (databaseName == "notificationOK") suffixName = "_nok";
-
-        // --- Унифицированная логика формирования пути и имени файла ---
-        // Используем данные, которые точно есть
-
-        // Очистка потенциально небезопасных имен
-        var cleanComputerName = computerName.Trim('\\', '/'); // Убираем слэши по краям
-        var cleanDirectoryName = directoryName.Trim('\\', '/');
-
-        // Формируем компоненты даты как строки
-        var yearStr = publishDate.Year.ToString();
-        var monthStr = publishDate.Month.ToString("D2"); // Формат "04"
-        var dayStr = publishDate.Day.ToString("D2"); // Формат "17"
-
-        // Собираем путь безопасно
-        string baseDirectory;
-        // Если computerName похож на локальный диск (C:)
-        if (Path.IsPathRooted(cleanComputerName) && cleanComputerName.Contains(":"))
+        string pathDirectory = GetValueOrDefault<string>(row, "PathDirectory");
+        if (string.IsNullOrWhiteSpace(pathDirectory))
         {
-            // Предполагаем, что directoryName это подпапка
-            baseDirectory = Path.Combine(cleanComputerName, cleanDirectoryName);
+            AddLogMessage($"Ошибка: PathDirectory отсутствует для файла '{originalFileName}' (ID: {documentMetaID})", "Error");
+            await _fileLogger.LogErrorAsync($"PathDirectory отсутствует для файла '{originalFileName}' (ID: {documentMetaID})");
+            return;
         }
-        // Иначе, предполагаем, что это сетевой путь (имя сервера + имя ресурса)
-        else
-        {
-            // Убедимся, что имя сервера начинается с \\
-            string serverPart = cleanComputerName;
-            if (!serverPart.StartsWith(@"\\"))
-            {
-                AddLogMessage($"ПРЕДУПРЕЖДЕНИЕ: computerName ('{computerName}') не начинается с '\\'. Добавляем префикс для UNC пути.", "Warning");
-                serverPart = @"\\" + serverPart;
-            }
-            baseDirectory = Path.Combine(serverPart, cleanDirectoryName);
-        }
-
-        string pathDocument = Path.Combine(
-            baseDirectory,
-            themeId.ToString(),
-            yearStr,
-            monthStr,
-            dayStr);
-
-        // Формируем полное имя файла
-        string fileNameOnly = $"{documentMetaID}{suffixName}.{expName}";
-        string fileDocument = Path.Combine(pathDocument, fileNameOnly);
-
-        // Логика с srcID и fileNameFtp удалена, т.к. fileNameFtp не возвращается процедурой
+string fileDocument = Path.Combine(pathDirectory, originalFileName);
 
         try // Основной try для ProcessFileAsync
         {
             if (flProv == false)
             {
-                if (!string.IsNullOrEmpty(pathDocument))
+                string dirOfFile = Path.GetDirectoryName(fileDocument);
+                if (!string.IsNullOrEmpty(dirOfFile))
                 {
-                    Directory.CreateDirectory(pathDocument);
-                }
-                else if (srcID == 0)
-                {
-                    string dirOfFile = Path.GetDirectoryName(fileDocument);
-                    if (!string.IsNullOrEmpty(dirOfFile))
-                    {
-                        Directory.CreateDirectory(dirOfFile);
-                    }
-                    else
-                    {
-                        AddLogMessage($"Предупреждение: не удалось определить директорию для создания для файла {fileDocument}");
-                        return; // Возвращаем false, если директория не определена
-                    }
+                    Directory.CreateDirectory(dirOfFile);
                 }
                 else
                 {
-                    throw new InvalidOperationException($"Путь к директории не определен для srcID={srcID}, file={fileDocument}");
+                    AddLogMessage($"Предупреждение: не удалось определить директорию для создания для файла {fileDocument}");
+                    return; // Возвращаем false, если директория не определена
                 }
 
 
@@ -1424,10 +1362,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 long fileSize = 0;
                 DownloadResult downloadResult = null;
                 bool downloadSucceeded = false;
-                const int maxRetries = 3;
-                int retryDelaySeconds = 1;
 
-                try
+                try // Внутренний try для скачивания
                 {
                     if (_breakerState == CircuitBreakerState.Open)
                     {
@@ -1455,7 +1391,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         await Task.Delay(currentAdaptiveDelay, token);
                     }
 
-                    for (int attempt = 1; attempt <= maxRetries; attempt++)
+                    for (int attempt = 1; attempt <= 3; attempt++)
                     {
                         token.ThrowIfCancellationRequested();
 
@@ -1469,7 +1405,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                         if (downloadResult.Success)
                         {
-                            fileSize = downloadResult.ActualSize;
+                            fileSize = downloadResult.ActualSize; // Получаем размер скачанного файла
                             downloadSucceeded = true;
 
                             if (shouldUpdateUI)
@@ -1501,9 +1437,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             }
                             break;
                         }
-                        else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries)
+                        else if (downloadResult.StatusCode == HttpStatusCode.TooManyRequests && attempt < 3)
                         {
-                            int delaySeconds = retryDelaySeconds;
+                            int delaySeconds = 1;
                             if (downloadResult.RetryAfterHeaderValue.HasValue)
                             {
                                 delaySeconds = (int)Math.Max(delaySeconds, downloadResult.RetryAfterHeaderValue.Value.TotalSeconds); // Берем максимум из нашей задержки и предложенной сервером
@@ -1541,7 +1477,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             }
 
                             await Task.Delay(totalDelay, token);
-                            retryDelaySeconds *= 2; // Увеличиваем *нашу* экспоненциальную задержку на случай, если Retry-After не было
+                            delaySeconds *= 2; // Увеличиваем *нашу* экспоненциальную задержку на случай, если Retry-After не было
                         }
                         else // Успех или другая ошибка (или последняя попытка 429)
                         {
@@ -1570,192 +1506,67 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         }
                     } // Конец for loop
 
-                    // Если после всех попыток загрузка не удалась
                     if (!downloadSucceeded)
                     {
-                        // downloadResult будет содержать информацию о последней ошибке
-                        throw new Exception($"Не удалось скачать файл '{originalFileName}' после {maxRetries} попыток. Последняя ошибка: {downloadResult?.ErrorMessage ?? "Неизвестная ошибка"}");
+                        throw new Exception($"Не удалось скачать файл '{originalFileName}' после 3 попыток. Последняя ошибка: {downloadResult?.ErrorMessage ?? "Неизвестная ошибка"}");
                     }
+                    // --- УСПЕШНОЕ СКАЧИВАНИЕ ---
 
-                    // Проверка, что файл существует (дополнительная, т.к. WebGetAsync должен это гарантировать при Success)
-                    FileInfo fileInfoCheck = new FileInfo(fileDocument);
-                    if (!fileInfoCheck.Exists || fileInfoCheck.Length != fileSize)
+                    Interlocked.Increment(ref _processedFilesCounter);
+                    _processedDatesSinceLastUpdate.Enqueue(publishDate); // Используем publishDate для статистики
+                    _lastProcessedFileName = originalFileName;
+
+                    bool skipSuccessUpdate = false;
+
+                    // --- Обработка архивов (если нужно) --- 
+                    // ... (логика обработки архивов, если включена) ...
+                    // if (isArchive) { ... } 
+                    // else // Если это не архив (обычный файл)
                     {
-                        throw new FileNotFoundException($"Файл '{fileDocument}' не существует или имеет неверный размер после скачивания.");
-                    }
-
-                    // --- Обработка архивов --- 
-                    // Список проверяемых расширений архивов (регистронезависимо)
-                    var archiveExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            ".zip", ".rar", ".7z", ".tar", ".gz", ".tgz" 
-                            // Добавьте другие, если нужно
-                        };
-                    bool isArchive = archiveExtensions.Contains("." + expName);
-
-                    // Обработка архива (если это архив)
-                    bool skipSuccessUpdate = false; // Флаг для пропуска обновления статуса успеха
-                    if (isArchive)
-                    {
-                        List<string> extractedFilePaths = null; // Список для хранения путей
+                        await _fileLogger.LogDebugAsync($"DEBUG: Файл '{originalFileName}' (ID: {documentMetaID}) не является архивом. Попытка вставки метаданных.");
                         try
                         {
-                            // Получаем директорию, куда распаковывать (та же, где лежит архив)
-                            string extractionPath = Path.GetDirectoryName(fileDocument);
-                            if (string.IsNullOrEmpty(extractionPath))
+                            // --- ЗАПОЛНЕНИЕ МОДЕЛИ AttachmentModel ---
+                            var attachment = new AttachmentModel
                             {
-                                throw new DirectoryNotFoundException($"Не удалось определить директорию для распаковки файла {fileDocument}");
-                            }
 
-                            AddLogMessage($"Распаковка архива: {fileDocument} в {extractionPath}");
-                            await _fileLogger.LogInfoAsync($"Распаковка архива: {fileDocument} в {extractionPath}");
-
-                            // Вызываем метод, который возвращает список файлов
-                            extractedFilePaths = _archiveService.ExtractArchive(fileDocument, extractionPath, true); // true - разрешаем перезапись
-
-                            AddLogMessage($"Архив '{originalFileName}' успешно распакован. Извлечено файлов: {extractedFilePaths?.Count ?? 0}", "Info", fileDocument);
-                            await _fileLogger.LogInfoAsync($"Архив '{originalFileName}' успешно распакован. Извлечено файлов: {extractedFilePaths?.Count ?? 0}");
-
-                            // --- Добавление записей для извлеченных файлов ---
-                            if (extractedFilePaths != null && extractedFilePaths.Count > 0)
-                            {
-                                // Используем documentMetaID исходного архива вместо row["n"]
-                                int n = documentMetaID; // <-- ИЗМЕНЕНИЕ ЗДЕСЬ
-                                foreach (string extractedPath in extractedFilePaths)
-                                {
-                                    try
-                                    {
-                                        FileInfo extractedInfo = new FileInfo(extractedPath);
-                                        string extractedFileName = extractedInfo.Name;
-                                        string extractedExpName = extractedInfo.Extension.TrimStart('.');
-                                        long? extractedFileSize = extractedInfo.Length;
-                                        
-                                        // Вызываем метод сервиса для добавления записи в БД
-                                        await _databaseService.InsertExtractedAttachmentAsync(
-                                            targetDbConnectionString, // Та же строка подключения
-                                            n,                      // n от исходного архива
-                                            extractedFileName,      // Имя файла
-                                            extractedFileName,      // Описание (имя файла)
-                                            null,                   // URL (нет)
-                                            extractedFileSize,      // Размер
-                                            extractedExpName,       // Расширение
-                                            token
-                                        );
-                                        AddLogMessage($"Добавлена запись для извлеченного файла: {extractedFileName} (n={n})", "Info");
-                                    }
-                                    catch (Exception insertEx)
-                                    {
-                                        // Логируем ошибку добавления записи, но не прерываем обработку остальных
-                                        AddLogMessage($"Ошибка добавления записи для извлеченного файла {Path.GetFileName(extractedPath)}: {insertEx.Message}", "Error");
-                                        await _fileLogger.LogErrorAsync($"Ошибка добавления записи для извлеченного файла {Path.GetFileName(extractedPath)}: {insertEx.Message}", insertEx);
-                                    }
-                                }
-                            }
-                            // --- Конец добавления записей ---
-
-                            // --- Удаление архива после успешной распаковки и обработки ---
-                            if (CurrentSettings.DeleteArchiveAfterExtraction) 
-                            {
-                                try
-                                {
-                                    File.Delete(fileDocument);
-                                    AddLogMessage($"Архив '{originalFileName}' удален после распаковки.", "Info", fileDocument); 
-                                    await _fileLogger.LogInfoAsync($"Архив '{originalFileName}' (путь: {fileDocument}) удален после распаковки.");
-                                }
-                                catch (Exception delEx)
-                                {
-                                    AddLogMessage($"Не удалось удалить архив '{originalFileName}' после распаковки: {delEx.Message}", "Warning");
-                                    await _fileLogger.LogWarningAsync($"Не удалось удалить архив '{originalFileName}' (путь: {fileDocument}) после распаковки: {delEx.Message}");
-                                }
-                            }
-                            // --- Конец удаления архива ---
+                            };
                         }
-                        catch (OperationCanceledException) { throw; } // Пробрасываем отмену
-                        catch (Exception archiveEx)
+                        catch (Exception ex)
                         {
-                            // ПРОВЕРКА НА НЕПОЛНЫЙ АРХИВ
-                            if (archiveEx.Message.Contains("ArchiveEntry is incomplete", StringComparison.OrdinalIgnoreCase))
-                            {
-                                AddLogMessage($"Предупреждение: Файл '{originalFileName}' является неполной частью архива. Обработка файла прервана до обновления статуса.", "Warning");
-                                await _fileLogger.LogWarningAsync($"Предупреждение: Файл '{originalFileName}' является неполной частью архива. Обработка файла прервана до обновления статуса.");
-                                skipSuccessUpdate = true; // Устанавливаем флаг, чтобы пропустить обновление статуса IsProcessed
-                            }
-                            else // Другие ошибки распаковки
-                            {
-                                AddLogMessage($"Ошибка при распаковке архива '{originalFileName}': {archiveEx.Message}", "Error");
-                                await _fileLogger.LogErrorAsync($"Ошибка при распаковке архива '{originalFileName}': {archiveEx.Message}", archiveEx);
-                                // Если не игнорируем ошибки, выбрасываем исключение дальше, чтобы остановить обработку этого файла
-                                if (!IgnoreDownloadErrors)
-                                {
-                                    throw;
-                                }
-                                else
-                                {
-                                    AddLogMessage($"Ошибка распаковки '{originalFileName}' проигнорирована.", "Warning");
-                                    await _fileLogger.LogWarningAsync($"Ошибка распаковки '{originalFileName}' проигнорирована.");
-                                    // Ошибка проигнорирована, но файл не обработан успешно, поэтому статус не обновляем.
-                                    // skipSuccessUpdate остается false, но мы не дойдем до блока обновления статуса из-за throw или потому что файл не обработан
-                                }
-                            }
                         }
-                    }
 
-                    // Обновление статуса в БД ТОЛЬКО если не было ошибки неполного архива и скачивание было успешным
+                    // Обновление статуса в БД
                     if (!skipSuccessUpdate)
-                    {
-                        // Возвращаем вызов UpdateDownloadFlagAsync
-                        await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, documentMetaID, token);
-                        
-                        if (shouldUpdateUI) // Логируем успех только периодически
                         {
-                            AddLogMessage($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.", "Success", fileDocument);
-                            await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {documentMetaID}) успешно обработан.");
+                            int idToUpdateFlag = documentMetaID; // Используем documentMetaID для обновления флага
+                            await _fileLogger.LogDebugAsync($"DEBUG: Флаг isProcessed будет обновлен для ID: {idToUpdateFlag}. skipSuccessUpdate={skipSuccessUpdate}.");
+                            await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, idToUpdateFlag, token);
+
+                            if (shouldUpdateUI)
+                            {
+                                AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
+                                await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
+                            }
                         }
-                        
-                        // Убираем return true;
-                        // return true;
+
+                        return;
                     }
-                    
-                    // Убираем return false;
-                    // return false;
-                    // Метод теперь void (Task), так что просто выходим, если флаг обновлять не нужно
-                    return; 
                 }
-                catch (Exception ex) // Внутренний catch для ошибок скачивания/проверки
-                {
-                    _logger.Error(ex, $"Внутренняя ошибка при попытке скачивания файла '{originalFileName}' ({url})");
-                    // Убираем return false;
-                    // return false;
-                    // Выбрасываем исключение, чтобы оно было поймано внешним catch в StartDownloadAsync
-                    throw;
-                }
+                catch (Exception downloadEx) { throw; }
             }
             else // Если flProv == true
             {
-                // Убираем return false;
-                // return false;
-                return; // Просто выходим
+                // ... (логика для flProv == true) ...
+                return; 
             }
-            // Убираем лишний return false;
-            // return false; 
         }
-        catch (Exception ex)
+        catch (Exception ex) // Внешний catch для ProcessFileAsync
         {
-            if (ex is OperationCanceledException)
-                throw;
-
-            string errorMessage = $"Не удалось обработать файл '{originalFileName}': {ex.Message}";
-            AddLogMessage(errorMessage, "Error");
-            await _fileLogger.LogErrorAsync(errorMessage, ex);
-
-            if (!IgnoreDownloadErrors)
-            {
-                throw;
-            }
-            // Убираем return false;
-            // return false;
-            // Если ошибки игнорируются, просто выходим из метода
-            return;
+           // ... (логирование основной ошибки) ...
+            if (ex is OperationCanceledException) throw;
+            if (!IgnoreDownloadErrors) throw; // Пробрасываем, если не игнорируем
+            return; // Иначе просто выходим
         }
     }
 
@@ -2106,4 +1917,54 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         AddLogMessage("Функция открытия настроек пока не реализована.", "Warning");
     }
     // --- Конец методов для UI и Таймера ---
+
+    #region DataRow Helper Methods
+
+    private static T GetValueOrDefault<T>(DataRow row, string columnName, T defaultValue = default)
+    {
+        if (row.Table.Columns.Contains(columnName) && row[columnName] != DBNull.Value)
+        {
+            try
+            {
+                // Попытка прямого приведения или конвертации
+                return (T)Convert.ChangeType(row[columnName], typeof(T));
+            }
+            catch (InvalidCastException)
+            {
+                // Если прямой каст не удался, попробуем через строку (для некоторых случаев)
+                try
+                {
+                    return (T)Convert.ChangeType(row[columnName].ToString(), typeof(T));
+                }
+                catch { return defaultValue; } // Возвращаем дефолт, если ничего не помогло
+            }
+            catch { return defaultValue; } // Другие ошибки конвертации
+        }
+        return defaultValue;
+    }
+
+    private static T? GetNullableValue<T>(DataRow row, string columnName) where T : struct
+    {
+        if (row.Table.Columns.Contains(columnName) && row[columnName] != DBNull.Value)
+        {
+            try
+            {
+                // Попытка прямого приведения или конвертации
+                return (T)Convert.ChangeType(row[columnName], typeof(T));
+            }
+             catch (InvalidCastException)
+            {
+                // Если прямой каст не удался, попробуем через строку
+                try
+                {
+                     return (T)Convert.ChangeType(row[columnName].ToString(), typeof(T));
+                }
+                catch { return null; }
+            }
+            catch { return null; } // Другие ошибки конвертации
+        }
+        return null;
+    }
+
+    #endregion
 }

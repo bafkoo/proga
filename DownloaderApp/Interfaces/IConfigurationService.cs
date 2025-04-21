@@ -1,6 +1,6 @@
 // using DownloaderApp.Models; // Удаляем эту строку
 using System.Collections.Generic;
-using FileDownloader.Models;
+using DownloaderApp.Models;
 
 
 namespace DownloaderApp.Interfaces

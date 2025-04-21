@@ -1,6 +1,6 @@
 using System;
 
-namespace FileDownloader.Models;
+namespace DownloaderApp.Models;
 
 /// <summary>
 /// Represents the data for an attachment to be inserted into the database.
@@ -8,7 +8,7 @@ namespace FileDownloader.Models;
 /// </summary>
 public class AttachmentModel
 {
-    public int DbID { get; set; }
+    public int DbId { get; set; }
     public int N { get; set; } // Consider a more descriptive name if possible
     public int? AttachmentsId { get; set; } // Nullable if it can be optional
     public int? MedicalCommissionDecisionId { get; set; } // Nullable
@@ -23,4 +23,7 @@ public class AttachmentModel
     public int? NotificationAttachmentsId { get; set; } // Nullable
     public int? AttachmentId { get; set; } // Nullable (seems redundant with AttachmentsId?)
     public int? UnableProvideContractGuaranteeDocsId { get; set; } // Nullable
+
+    // Property that was used in the previous version of DatabaseService but not in the SP
+    // public string? ExpName { get; set; } // Keep commented out or remove if not needed elsewhere
 } 

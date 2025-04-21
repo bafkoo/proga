@@ -1,4 +1,4 @@
-namespace FileDownloader.Models;
+namespace DownloaderApp.Models;
 
 /// <summary>
 /// Представляет информацию о доступной теме.

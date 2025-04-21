@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FileDownloader.Views"
         xmlns:viewModels="clr-namespace:FileDownloader.ViewModels"
-        xmlns:models="clr-namespace:FileDownloader.Models"
+        xmlns:models="clr-namespace:DownloaderApp.Models"
         xmlns:converters="clr-namespace:FileDownloader.Converters"
         xmlns:metro="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
