@@ -1298,7 +1298,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         int documentMetaID = GetValueOrDefault<int>(row, "documentMetaID"); 
         string pathDirectory = GetValueOrDefault<string>(row, "pathDirectory");
         string originalFileName = GetValueOrDefault<string>(row, "fileName");
-        themeId = GetValueOrDefault<int>(row, "themeID", 0);
+        
         DateTime publishDate = GetValueOrDefault<DateTime>(row, "publishDate", DateTime.MinValue);
         await _fileLogger.LogDebugAsync($"DEBUG: Извлечён pathDirectory='{pathDirectory}', fileName='{originalFileName}' для ID={documentMetaID}");
         // Fallback: если pathDirectory пустой, формируем путь вручную по старому шаблону
@@ -1404,7 +1404,9 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             await _fileLogger.LogInfoAsync($"Попытка скачивания #{attempt} для: {originalFileName}");
                         }
 
-                        downloadResult = await WebGetAsync(fileDocument, fileDocument, token, progress);
+                        // --- Ключевая правка: используем url из DataRow ---
+                        string url = GetValueOrDefault<string>(row, "url");
+                        downloadResult = await WebGetAsync(url, fileDocument, token, progress);
 
                         if (downloadResult.Success)
                         {
@@ -1538,6 +1540,34 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
                             await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
                         }
+
+                        // --- Вызов процедуры регистрации в IAC ---
+                        var parameters = new Dictionary<string, object>
+                        {
+                            {"@databaseName", databaseName},
+                            {"@computerName", GetValueOrDefault<string>(row, "computerName")},
+                            {"@directoryName", GetValueOrDefault<string>(row, "directoryName")},
+                            {"@themeID", themeId},
+                            {"@year", publishDate.Year},
+                            {"@month", publishDate.Month},
+                            {"@day", publishDate.Day},
+                            {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
+                            {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
+                            {"@documentMetaID", documentMetaID},
+                            {"@processID", 0},
+                            {"@fileName", originalFileName},
+                            {"@suffixName", ""},
+                            {"@expName", GetValueOrDefault<string>(row, "expName")},
+                            {"@docDescription", GetValueOrDefault<string>(row, "docDescription")},
+                            {"@fileSize", new System.IO.FileInfo(fileDocument).Length},
+                            {"@srcID", srcID},
+                            {"@usrID", 0},
+                            {"@documentMetaPathID", 0}
+                        };
+                        var configService = new ConfigurationService();
+                        var defaultConnectionString = configService.GetDefaultConnectionString();
+                        await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, parameters, token);
+                        await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathAsync: Вызов процедуры documentMetaPathInsert для ID: {documentMetaID} завершен.");
                     }
 
                     return;

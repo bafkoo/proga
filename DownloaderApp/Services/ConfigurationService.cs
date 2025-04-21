@@ -55,6 +55,15 @@ namespace DownloaderApp.Services
         }
 
         /// <summary>
+        /// Получает строку подключения к серверу по умолчанию
+        /// </summary>
+        public string GetDefaultConnectionString()
+        {
+            return _configuration.GetConnectionString("DefaultConnection") ?? 
+                throw new InvalidOperationException("Не найдена строка подключения 'DefaultConnection' в конфигурации");
+        }
+
+        /// <summary>
         /// Получает настройки приложения
         /// </summary>
         public ApplicationSettings GetApplicationSettings()
