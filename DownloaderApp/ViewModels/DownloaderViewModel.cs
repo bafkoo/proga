@@ -1318,7 +1318,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             }
         }
         string fileExtension = Path.GetExtension(originalFileName);
-        var newFileNameInner = GetUniqueFileName(originalFileName);
+        string newFileNameInner = fileExtension.Equals(".zip", StringComparison.OrdinalIgnoreCase)
+            || fileExtension.Equals(".rar", StringComparison.OrdinalIgnoreCase)
+            || fileExtension.Equals(".7z", StringComparison.OrdinalIgnoreCase)
+            || fileExtension.Equals(".tar", StringComparison.OrdinalIgnoreCase)
+            || fileExtension.Equals(".gz", StringComparison.OrdinalIgnoreCase)
+            || fileExtension.Equals(".bz2", StringComparison.OrdinalIgnoreCase)
+            ? $"{documentMetaID}{fileExtension}"
+            : GetUniqueFileName(originalFileName);
         // --- Удаляем самостоятельное формирование пути ---
         if (string.IsNullOrWhiteSpace(pathDirectory) || string.IsNullOrWhiteSpace(originalFileName))
         {
@@ -1532,26 +1539,66 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         fileExtension.Equals(".bz2", StringComparison.OrdinalIgnoreCase))
                     {
                         string extractDir = Path.Combine(Path.GetDirectoryName(fileDocument), Path.GetFileNameWithoutExtension(fileDocument));
+                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Получена директория для распаковки: '{extractDir}' для файла '{originalFileName}'.");
                         Directory.CreateDirectory(extractDir);
+                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Директория для распаковки создана или существует: '{extractDir}'.");
                         var extractedFiles = _archiveService.ExtractArchiveRecursive(fileDocument, extractDir, true);
+                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Распаковка завершена. Найдено {extractedFiles.Count()} файлов.");
+                        await _fileLogger.LogDebugAsync("ARCHIVE_DETAIL: Начало обработки распакованных файлов.");
                         foreach (var extractedFile in extractedFiles)
                         {
+                            await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Обработка распакованного файла: '{extractedFile}', размер: {new FileInfo(extractedFile).Length} байт.");
                             var archiveParams = new Dictionary<string, object>
                             {
                                 {"@documentMetaPathID", 0},
                                 {"@documentMetaID", documentMetaID},
                                 {"@processID", 0},
-                                {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
+                                {"@databaseName", databaseName},
+                                {"@computerName", GetValueOrDefault<string>(row, "computerName") ?? string.Empty},
+                                {"@directoryName", GetValueOrDefault<string>(row, "directoryName") ?? string.Empty},
+                                {"@themeID", themeId},
+                                {"@year", publishDate.Year},
+                                {"@month", publishDate.Month},
+                                {"@day", publishDate.Day},
                                 {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
+                                {"@archiveNumber", 1},
                                 {"@fileName", Path.GetFileName(extractedFile)},
+                                {"@suffixName", ""},
                                 {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
-                                {"@fileSize", new System.IO.FileInfo(extractedFile).Length},
-                                {"@databaseName", databaseName}
+                                {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
+                                {"@fileSize", new System.IO.FileInfo(extractedFile).Length}
                             };
                             var configService = new ConfigurationService();
                             var defaultConnectionString = configService.GetDefaultConnectionString();
                             string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
                             await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathArchiveAsync: Вызов процедуры documentMetaPathArchiveInsert для архива ID: {documentMetaID}, файл: {extractedFile}, новое имя: {newFileName}");
+                            // Переименовываю физически извлечённый файл
+                            string newFilePath = Path.Combine(Path.GetDirectoryName(extractedFile), newFileName);
+                            await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Готовимся к переименованию. newFileName='{newFileName}', newFilePath='{newFilePath}', extractedFile='{extractedFile}'");
+                            if (string.IsNullOrWhiteSpace(newFileName))
+                            {
+                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Возвращено пустое имя файла для '{extractedFile}'. Переименование не выполняется.");
+                                continue;
+                            }
+                            if (Path.GetExtension(newFileName) == string.Empty)
+                            {
+                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Возвращённое имя файла без расширения: '{newFileName}' для '{extractedFile}'.");
+                            }
+                            if (File.Exists(newFilePath))
+                            {
+                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Файл с именем '{newFilePath}' уже существует. Переименование не выполняется.");
+                                continue;
+                            }
+                            try
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
+                                File.Move(extractedFile, newFilePath);
+                                await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Файл переименован: '{extractedFile}' -> '{newFilePath}'.");
+                            }
+                            catch (Exception ex)
+                            {
+                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Ошибка при переименовании файла '{extractedFile}' -> '{newFilePath}': {ex.Message}");
+                            }
                         }
                     }
                     else
@@ -1600,328 +1647,26 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     }
                     return;
                 }
-                catch (Exception) {
-                    }
+                catch (Exception) { }
             }
             else // Если flProv == true
             {
                 // ... (логика для flProv == true) ...
-                return; 
+                return;
             }
         }
         catch (OperationCanceledException) // Внешний catch для ProcessFileAsync
         {
-           // ... (логирование основной ошибки) ...
-           throw;
+            // ... (логирование основной ошибки) ...
+            throw;
         }
         catch (Exception) // Внешний catch для ProcessFileAsync
         {
-           // ... (логирование основной ошибки) ...
+            // ... (логирование основной ошибки) ...
             if (!IgnoreDownloadErrors) throw; // Пробрасываем, если не игнорируем
             return; // Иначе просто выходим
         }
     }
-
-    // --- НОВЫЕ Методы для статистики по датам ---
-    private async Task InitializeDateStatisticsAsync(DataTable fileTable)
-    {
-        // Добавлено логирование входа в метод
-        await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Вход в метод.");
-        if (fileTable == null)
-        {
-            // Логируем случай с null таблицей
-            await _fileLogger.LogWarningAsync("InitializeDateStatisticsAsync: Входной fileTable равен null. Статистика не будет инициализирована.");
-            return;
-        }
-        // Логируем количество строк во входной таблице
-        await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Входной fileTable содержит {fileTable.Rows.Count} строк.");
-
-        AddLogMessage("InitializeDateStatisticsAsync: Расчет начальной статистики...");
-        // await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Расчет начальной статистики..."); // Дублирующее сообщение
-        try
-        {
-            var countsByDateList = await Task.Run(() =>
-            {
-                return fileTable.AsEnumerable()
-                    .Where(row => row["publishDate"] != DBNull.Value && DateTime.TryParse(row["publishDate"].ToString(), out _))
-                    .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
-                    .Select(g => new { Date = g.Key, Count = g.Count() })
-                    .OrderBy(x => x.Date)
-                    .ToList();
-            });
-            
-            // Логируем количество сгруппированных дат ПЕРЕД обновлением UI
-            await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Найдено {countsByDateList.Count} уникальных дат для статистики.");
-
-            // Добавляем async к лямбда-выражению
-            await Application.Current.Dispatcher.InvokeAsync(async () =>
-            {
-                // Логируем начало очистки и заполнения
-                await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync (Dispatcher): Начало очистки и заполнения FileCountsPerDate и _fileCountsDict.");
-                FileCountsPerDate.Clear();
-                _fileCountsDict.Clear();
-                foreach (var item in countsByDateList)
-                {
-                    var newStat = new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 };
-                    FileCountsPerDate.Add(newStat);
-                    _fileCountsDict.Add(item.Date, newStat);
-                    // Можно добавить логирование каждой добавляемой даты, если нужно (закомментировано для краткости)
-                    // await _fileLogger.LogDebugAsync($"InitializeDateStatisticsAsync (Dispatcher): Добавлена дата {item.Date:dd.MM.yyyy} с {item.Count} файлами.");
-                }
-                // Логируем количество инициализированных дат ПОСЛЕ заполнения
-                await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync (Dispatcher): Заполнено {_fileCountsDict.Count} дат в словаре и {FileCountsPerDate.Count} в коллекции.");
-                AddLogMessage($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
-            });
-        }
-        catch (Exception ex)
-        {
-            AddLogMessage($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
-            // Улучшено логирование ошибки
-            await _fileLogger.LogErrorAsync("InitializeDateStatisticsAsync: Ошибка при расчете или обновлении статистики", ex);
-        }
-        // await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат."); // Дублирующее сообщение из Dispatcher
-    }
-
-    private async Task UpdateDateStatisticsAsync(DataTable fileTable)
-    {
-        // Реализация этого метода уже была добавлена ранее
-        // Оставляем её как есть или добавляем, если отсутствует
-        if (fileTable == null) return;
-        AddLogMessage("UpdateDateStatisticsAsync: Обновление статистики...");
-        await _fileLogger.LogInfoAsync("UpdateDateStatisticsAsync: Обновление статистики...");
-        try
-        {
-            var currentCountsByDateDict = await Task.Run(() =>
-            {
-                return fileTable.AsEnumerable()
-                   .Where(row => row["publishDate"] != DBNull.Value)
-                   .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
-                   .ToDictionary(g => g.Key, g => g.Count());
-            });
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                foreach (var kvp in currentCountsByDateDict)
-                {
-                    var date = kvp.Key;
-                    var newCount = kvp.Value;
-                    if (!_fileCountsDict.TryGetValue(date, out var existingStat))
-                    {
-                        var newStat = new DailyFileCount { Date = date, Count = newCount, ProcessedCount = 0 };
-                        FileCountsPerDate.Add(newStat);
-                        _fileCountsDict.Add(date, newStat);
-                        AddLogMessage($"UpdateDateStatisticsAsync: Добавлена дата {date:dd.MM.yyyy} ({newCount} файлов).");
-                    }
-                    else if (existingStat.Count < newCount)
-                    {
-                        AddLogMessage($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
-                        existingStat.Count = newCount;
-                        AddLogMessage($"UpdateDateStatisticsAsync: Обновлен счетчик для {date:dd.MM.yyyy}. Было: {existingStat.Count}, стало: {newCount}.");
-                    }
-                }
-            });
-            AddLogMessage($"UpdateDateStatisticsAsync: Обновление завершено.");
-            await _fileLogger.LogInfoAsync($"UpdateDateStatisticsAsync: Обновление завершено.");
-        }
-        catch (Exception ex)
-        {
-            AddLogMessage($"UpdateDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
-            await _fileLogger.LogErrorAsync($"UpdateDateStatisticsAsync: Ошибка: {ex.Message}");
-        }
-    }
-    // --- Конец НОВЫХ МЕТОДОВ для статистики ---
-
-    // --- Асинхронный метод загрузки баз ---
-    private async Task LoadAvailableDatabasesAsync()
-    {
-        await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: Начало.");
-        if (string.IsNullOrEmpty(_baseConnectionString))
-        {
-            await _fileLogger.LogErrorAsync("LoadAvailableDatabasesAsync: Ошибка - _baseConnectionString пустая.");
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases))
-            );
-            return;
-        }
-        try
-        {
-            var databases = new[] { "fcsNotification", "contract", "purchaseNotice", "requestQuotation" };
-            var availableDbs = new List<DatabaseInfo>();
-            foreach (var db in databases)
-            {
-                try
-                {
-                    var connectionString = _baseConnectionString + $";Initial Catalog={db};Connect Timeout=5";
-                    using (var connection = new SqlConnection(connectionString))
-                    {
-                        await connection.OpenAsync();
-                        string displayName;
-                        switch (db)
-                        {
-                            case "fcsNotification": displayName = "Извещения 44 (fcsNotification)"; break;
-                            case "contract": displayName = "Контракт (contract)"; break;
-                            case "purchaseNotice": displayName = "Извещения 223 (purchaseNotice)"; break;
-                            case "requestQuotation": displayName = "Запрос цен (requestQuotation)"; break;
-                            default: displayName = db; break;
-                        }
-                        availableDbs.Add(new DatabaseInfo { Name = db, DisplayName = displayName });
-                        AddLogMessage($"LoadAvailableDatabasesAsync: База {displayName} доступна.", "Info");
-                        await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: База {displayName} доступна.");
-                        AddLogMessage($"LoadAvailableDatabasesAsync: База данных {displayName} доступна.", "Success"); // Изменено
-                        await _fileLogger.LogSuccessAsync($"LoadAvailableDatabasesAsync: База данных {displayName} доступна.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await _fileLogger.LogWarningAsync($"LoadAvailableDatabasesAsync: База {db} недоступна: {ex.Message}");
-                }
-            }
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                 SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(availableDbs), nameof(AvailableDatabases))
-            );
-            AddLogMessage($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.", "Info");
-            await _fileLogger.LogInfoAsync($"LoadAvailableDatabasesAsync: Загружено {availableDbs.Count} баз.");
-        }
-        catch (Exception ex)
-        {
-            await _fileLogger.LogCriticalAsync($"LoadAvailableDatabasesAsync: КРИТИЧЕСКАЯ ОШИБКА: {ex.Message}");
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                SetProperty(ref _availableDatabases, new ObservableCollection<DatabaseInfo>(), nameof(AvailableDatabases))
-            );
-        }
-    }
-
-    // --- Асинхронный метод загрузки тем ---
-    private async Task LoadAvailableThemesAsync()
-    {
-        await _fileLogger.LogInfoAsync("LoadAvailableThemesAsync: Загрузка тем...");
-        if (string.IsNullOrEmpty(_iacConnectionString))
-        {
-            await _fileLogger.LogErrorAsync("LoadAvailableThemesAsync: Ошибка - строка IacConnection не загружена.");
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-               SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
-            );
-            return;
-        }
-        try
-        {
-            var connectionString = _iacConnectionString;
-            var themes = new List<ThemeInfo>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-                using (var command = new SqlCommand("SELECT ThemeID, themeName FROM Theme", connection))
-                {
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            themes.Add(new ThemeInfo
-                            {
-                                Id = reader.GetInt32(0),
-                                Name = reader.GetString(1)
-                            });
-                        }
-                    }
-                }
-            }
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                 SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(themes), nameof(AvailableThemes))
-            );
-            AddLogMessage($"LoadAvailableThemesAsync: Загружено {themes.Count} тем.", "Success");
-            await _fileLogger.LogSuccessAsync($"LoadAvailableThemesAsync: Загружено {themes.Count} тем.");
-        }
-        catch (Exception ex)
-        {
-            AddLogMessage($"LoadAvailableThemesAsync: Ошибка при загрузке тем: {ex.Message}", "Error");
-            await _fileLogger.LogErrorAsync($"LoadAvailableThemesAsync: Ошибка при загрузке тем: {ex.Message}");
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                SetProperty(ref _availableThemes, new ObservableCollection<ThemeInfo>(), nameof(AvailableThemes))
-            );
-        }
-    }
-
-    // --- Реализация IDataErrorInfo ---
-    public string Error => null;
-
-    public string this[string columnName]
-    {
-        get
-        {
-            string error = string.Empty;
-            switch (columnName)
-            {
-                case nameof(SelectedDatabase):
-                    if (SelectedDatabase == null)
-                        error = "Необходимо выбрать базу данных";
-                    break;
-                case nameof(SelectedTheme):
-                    if (SelectedTheme == null)
-                        error = "Необходимо выбрать тему";
-                    break;
-                case nameof(BeginDate):
-                case nameof(EndDate):
-                    if (BeginDate > EndDate)
-                        error = "Дата начала не может быть позже даты конца";
-                    break;
-            }
-            if (StartDownloadCommand is AsyncRelayCommand rc) rc.NotifyCanExecuteChanged();
-            return error;
-        }
-    }
-
-    // --- Методы для команд ---
-    private void ClearLog()
-    {
-        LogMessages.Clear();
-        FilteredLogMessages.Clear();
-        // Возможно, стоит добавить лог-сообщение об очистке
-        AddLogMessage("Лог очищен.", "Info");
-    }
-
-    private void CopyLogToClipboard()
-    {
-        // TODO: Реализовать копирование логов (FilteredLogMessages) в буфер обмена
-        AddLogMessage("Функция копирования лога пока не реализована.", "Warning");
-        // Примерная реализация:
-        // var logs = string.Join(Environment.NewLine, FilteredLogMessages.Select(m => $"[{m.Timestamp:HH:mm:ss}] [{m.Type}] {m.Message}"));
-        // Clipboard.SetText(logs);
-    }
-
-    private void OpenLogDirectory()
-    {
-        // TODO: Реализовать открытие папки с логами (_fileLogger должен знать путь)
-        AddLogMessage("Функция открытия папки логов пока не реализована.", "Warning");
-        // Примерная реализация (требует доступа к пути из _fileLogger):
-        // string logPath = _fileLogger.GetLogDirectory(); 
-        // if (!string.IsNullOrEmpty(logPath) && Directory.Exists(logPath))
-        // {
-        //     Process.Start("explorer.exe", logPath);
-        // }
-        // else
-        // {
-        //     AddLogMessage("Не удалось определить путь к папке логов.", "Error");
-        // }
-    }
-
-    private void OpenFileLocation(string filePath)
-    {
-        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
-        {
-            try
-            {
-                Process.Start("explorer.exe", $"/select,\"{filePath}\"");
-            }
-            catch (Exception ex)
-            {
-                AddLogMessage($"Ошибка при открытии папки с файлом: {ex.Message}", "Error");
-            }
-        }
-        else
-        {
-            AddLogMessage("Не удалось открыть папку с файлом: файл не найден.", "Warning");
-        }
-    }
-    // --- Конец методов для команд ---
 
     // --- Методы для UI и Таймера ---
     private void PopulateThemeSelectors()
@@ -2027,4 +1772,113 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
     }
 
     #endregion
+
+    // --- Реализация IDataErrorInfo ---
+    public string Error => null;
+
+    public string this[string columnName]
+    {
+        get
+        {
+            string error = string.Empty;
+            switch (columnName)
+            {
+                case nameof(SelectedDatabase):
+                    if (SelectedDatabase == null)
+                        error = "Необходимо выбрать базу данных";
+                    break;
+                case nameof(SelectedTheme):
+                    if (SelectedTheme == null)
+                        error = "Необходимо выбрать тему";
+                    break;
+                case nameof(BeginDate):
+                case nameof(EndDate):
+                    if (BeginDate > EndDate)
+                        error = "Дата начала не может быть позже даты конца";
+                    break;
+            }
+            if (StartDownloadCommand is AsyncRelayCommand rc) rc.NotifyCanExecuteChanged();
+            return error;
+        }
+    }
+
+    private void ClearLog()
+    {
+        LogMessages.Clear();
+        FilteredLogMessages.Clear();
+        AddLogMessage("Лог очищен.", "Info");
+    }
+
+    private void CopyLogToClipboard()
+    {
+        AddLogMessage("Функция копирования лога пока не реализована.", "Warning");
+    }
+
+    private void OpenLogDirectory()
+    {
+        AddLogMessage("Функция открытия папки логов пока не реализована.", "Warning");
+    }
+
+    private void OpenFileLocation(string filePath)
+    {
+        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+        {
+            try
+            {
+                Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+            }
+            catch (Exception ex)
+            {
+                AddLogMessage($"Ошибка при открытии папки с файлом: {ex.Message}", "Error");
+            }
+        }
+        else
+        {
+            AddLogMessage("Не удалось открыть папку с файлом: файл не найден.", "Warning");
+        }
+    }
+
+    private async Task InitializeDateStatisticsAsync(DataTable fileTable)
+    {
+        await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync: Вход в метод.");
+        if (fileTable == null)
+        {
+            await _fileLogger.LogWarningAsync("InitializeDateStatisticsAsync: Входной fileTable равен null. Статистика не будет инициализирована.");
+            return;
+        }
+        await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Входной fileTable содержит {fileTable.Rows.Count} строк.");
+        AddLogMessage("InitializeDateStatisticsAsync: Расчет начальной статистики...");
+        try
+        {
+            var countsByDateList = await Task.Run(() =>
+            {
+                return fileTable.AsEnumerable()
+                    .Where(row => row["publishDate"] != DBNull.Value && DateTime.TryParse(row["publishDate"].ToString(), out _))
+                    .GroupBy(row => DateTime.Parse(row["publishDate"].ToString()).Date)
+                    .Select(g => new { Date = g.Key, Count = g.Count() })
+                    .OrderBy(x => x.Date)
+                    .ToList();
+            });
+            await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync: Найдено {countsByDateList.Count} уникальных дат для статистики.");
+            await Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                await _fileLogger.LogInfoAsync("InitializeDateStatisticsAsync (Dispatcher): Начало очистки и заполнения FileCountsPerDate и _fileCountsDict.");
+                FileCountsPerDate.Clear();
+                _fileCountsDict.Clear();
+                foreach (var item in countsByDateList)
+                {
+                    var newStat = new DailyFileCount { Date = item.Date, Count = item.Count, ProcessedCount = 0 };
+                    FileCountsPerDate.Add(newStat);
+                    _fileCountsDict.Add(item.Date, newStat);
+                }
+                await _fileLogger.LogInfoAsync($"InitializeDateStatisticsAsync (Dispatcher): Заполнено {_fileCountsDict.Count} дат в словаре и {FileCountsPerDate.Count} в коллекции.");
+                AddLogMessage($"InitializeDateStatisticsAsync: Статистика инициализирована для {FileCountsPerDate.Count} дат.");
+            });
+        }
+        catch (Exception ex)
+        {
+            AddLogMessage($"InitializeDateStatisticsAsync: Ошибка: {ex.Message}", "Error");
+            await _fileLogger.LogErrorAsync("InitializeDateStatisticsAsync: Ошибка при расчете или обновлении статистики", ex);
+        }
+    }
 }
