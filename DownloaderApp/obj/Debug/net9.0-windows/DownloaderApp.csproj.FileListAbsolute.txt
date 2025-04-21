@@ -115,10 +115,6 @@ C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\runtimes\win-a
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\runtimes\win-x64\native\e_sqlite3.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\runtimes\win-x86\native\e_sqlite3.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\runtimes\win\lib\net9.0\System.Diagnostics.EventLog.dll
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\App.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\MainWindow.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\SettingsWindow.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.g.resources
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.AssemblyInfoInputs.cache
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.AssemblyInfo.cs
@@ -397,3 +393,7 @@ C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\FileDownload
 C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.genruntimeconfig.cache
 C:\Users\Krasoft2025\proga-1\DownloaderApp\obj\Debug\net9.0-windows\ref\FileDownloader.dll
 C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\NLog.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\App.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\MainWindow.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\SettingsWindow.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.g.resources

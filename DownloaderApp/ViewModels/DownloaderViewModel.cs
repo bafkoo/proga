@@ -428,7 +428,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private DownloaderViewModel(IFileLogger fileLogger)
     {
+        // Добавляем лог в самое начало конструктора
+        _ = fileLogger?.LogDebugAsync("DownloaderViewModel: Вход в конструктор."); // Лог Constructor-Start (fire-and-forget)
+
         _fileLogger = fileLogger ?? throw new ArgumentNullException(nameof(fileLogger));
+
+        // Добавляем лог перед инициализацией команд
+        _ = _fileLogger?.LogDebugAsync("DownloaderViewModel: Перед инициализацией команд."); // Лог Constructor-BeforeCommands (fire-and-forget)
 
         StartDownloadCommand = new AsyncRelayCommand(StartDownloadAsync, () => !_isDownloading && _isInitialized);
         CancelDownloadCommand = new RelayCommand(CancelDownload, () => _isDownloading);
@@ -438,7 +444,13 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
         OpenLogDirectoryCommand = new RelayCommand(OpenLogDirectory);
         OpenFileLocationCommand = new RelayCommand<string>(OpenFileLocation, (filePath) => !string.IsNullOrEmpty(filePath) && File.Exists(filePath));
 
+        // Добавляем лог перед InitializeUiUpdateTimer
+        _ = _fileLogger?.LogDebugAsync("DownloaderViewModel: Перед InitializeUiUpdateTimer."); // Лог Constructor-BeforeTimerInit (fire-and-forget)
+
         InitializeUiUpdateTimer();
+
+        // Добавляем лог в конец конструктора
+        _ = _fileLogger?.LogDebugAsync("DownloaderViewModel: Выход из конструктора."); // Лог Constructor-End (fire-and-forget)
     }
 
     private async Task LoadConfigurationAndSettingsAsync()
@@ -471,10 +483,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             CurrentFtpSettings = _configurationService.GetFtpSettings();
 
             // Инициализация фильтров логов и тем UI
-            await InitializeLogFilterTypes();
-            PopulateThemeSelectors();
+            await InitializeLogFilterTypes(); // <-- Последнее сообщение в логе было отсюда
+            await _fileLogger.LogDebugAsync("LoadConfigurationAndSettingsAsync: После InitializeLogFilterTypes."); // <-- Лог 1
+
+            PopulateThemeSelectors(); // <-- Вызов синхронного метода
+            await _fileLogger.LogDebugAsync("LoadConfigurationAndSettingsAsync: После PopulateThemeSelectors."); // <-- Лог 2
             
             // Применение тем UI
+            await _fileLogger.LogDebugAsync("LoadConfigurationAndSettingsAsync: Перед установкой тем UI."); // <-- Лог 3
             SelectedBaseUiTheme = AvailableBaseUiThemes.Contains(CurrentSettings.BaseTheme)
                 ? CurrentSettings.BaseTheme
                 : AvailableBaseUiThemes.FirstOrDefault() ?? "Light";
@@ -482,6 +498,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             SelectedAccentUiColor = AvailableAccentUiColors.Contains(CurrentSettings.AccentColor)
                 ? CurrentSettings.AccentColor
                 : AvailableAccentUiColors.FirstOrDefault() ?? "Blue";
+            await _fileLogger.LogDebugAsync("LoadConfigurationAndSettingsAsync: После установки тем UI."); // <-- Лог 4
 
             await _fileLogger.LogInfoAsync("Конфигурация успешно загружена");
         }
@@ -494,12 +511,16 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
     private async Task InitializeAsync()
     {
+        await _fileLogger.LogDebugAsync("InitializeAsync: Вход в метод."); // <-- Лог 5
         try
         {
             await _fileLogger.LogInfoAsync("Начало инициализации");
             
+            await _fileLogger.LogDebugAsync("InitializeAsync: Перед LoadAvailableDatabases."); // <-- Лог 6
             await LoadAvailableDatabases();
+            await _fileLogger.LogDebugAsync("InitializeAsync: Перед LoadAvailableThemes."); // <-- Лог 7
             await LoadAvailableThemes();
+            await _fileLogger.LogDebugAsync("InitializeAsync: После LoadAvailableThemes."); // <-- Лог 8
             
             StatusMessage = "Готов";
             _isInitialized = true;
@@ -1598,7 +1619,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             // --- Добавление записей для извлеченных файлов ---
                             if (extractedFilePaths != null && extractedFilePaths.Count > 0)
                             {
-                                int n = Convert.ToInt32(row["n"].ToString()); // Получаем n из исходной строки
+                                // Используем documentMetaID исходного архива вместо row["n"]
+                                int n = documentMetaID; // <-- ИЗМЕНЕНИЕ ЗДЕСЬ
                                 foreach (string extractedPath in extractedFilePaths)
                                 {
                                     try

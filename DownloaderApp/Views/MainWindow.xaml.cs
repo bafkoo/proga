@@ -3,6 +3,8 @@ using FileDownloader.ViewModels;
 using MahApps.Metro.Controls;
 using DownloaderApp.Infrastructure.Logging;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace FileDownloader.Views;
 
@@ -11,42 +13,17 @@ namespace FileDownloader.Views;
 /// </summary>
 public partial class MainWindow : MetroWindow
 {
-    public MainWindow()
+    private readonly IFileLogger _logger;
+
+    public MainWindow(IFileLogger logger)
     {
+        _logger = logger;
+        _ = _logger?.LogDebugAsync("MainWindow: Вход в конструктор.");
+
         InitializeComponent();
-        _ = SetDataContextAsync();
-    }
 
-    private async Task SetDataContextAsync()
-    {
-        IFileLogger fileLogger = null;
-        try
-        {
-            fileLogger = new FileLogger();
-            await fileLogger.LogInfoAsync("MainWindow: FileLogger создан.");
-            await fileLogger.LogInfoAsync("MainWindow: Запуск SetDataContextAsync");
+        _ = _logger?.LogDebugAsync("MainWindow: После InitializeComponent.");
 
-            var viewModel = await DownloaderViewModel.CreateAsync(fileLogger);
-            await fileLogger.LogInfoAsync("MainWindow: DownloaderViewModel создан успешно");
-            
-            this.DataContext = viewModel;
-            await fileLogger.LogInfoAsync("MainWindow: DataContext установлен");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"!!! КРИТИЧЕСКАЯ ОШИБКА SetDataContextAsync: {ex}");
-            try 
-            { 
-                 await fileLogger?.LogErrorAsync("Критическая ошибка при инициализации MainWindow", ex);
-            }
-            catch { /* Игнорируем ошибки записи в лог на этом этапе */ }
-
-            MessageBox.Show($"Критическая ошибка при запуске приложения:\n{ex.Message}\n\nПодробности смотрите в файле лога.", 
-                            "Ошибка инициализации", 
-                            MessageBoxButton.OK, 
-                            MessageBoxImage.Error);
-            
-            Application.Current.Shutdown(-1); 
-        }
+        _ = _logger?.LogDebugAsync("MainWindow: Выход из конструктора.");
     }
 } 

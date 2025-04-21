@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using FileDownloader.ViewModels;
 using FileDownloader.Views;
 using DownloaderApp.Infrastructure.Logging;
+using System.Threading.Tasks;
 
 namespace FileDownloader;
 
@@ -24,11 +25,19 @@ public partial class App : Application
 
     public App()
     {
+        DispatcherUnhandledException += App_DispatcherUnhandledException;
+
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices((context, services) =>
             {
                 services.AddSingleton<IFileLogger, FileLogger>();
                 // Регистрация других сервисов
+
+                // Регистрируем ViewModel (если он нужен где-то еще через DI)
+                // services.AddSingleton<DownloaderViewModel>(); // Пока неясно, нужно ли это
+
+                // Регистрируем MainWindow и позволяем DI внедрить IFileLogger
+                services.AddSingleton<MainWindow>();
             })
             .Build();
 
@@ -41,18 +50,31 @@ public partial class App : Application
 
         try
         {
-            var mainWindow = new MainWindow();
+            await _logger.LogDebugAsync("OnStartup: Начало асинхронной инициализации.");
+
+            // Вручную создаем ViewModel асинхронно
+            await _logger.LogDebugAsync("OnStartup: Перед DownloaderViewModel.CreateAsync.");
+            var viewModel = await DownloaderViewModel.CreateAsync(_logger); // Передаем _logger
+            await _logger.LogDebugAsync("OnStartup: После DownloaderViewModel.CreateAsync.");
+
+            // Получаем MainWindow из DI контейнера
+            await _logger.LogDebugAsync("OnStartup: Перед GetRequiredService<MainWindow>.");
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            await _logger.LogDebugAsync("OnStartup: После GetRequiredService<MainWindow>.");
+
+            // Устанавливаем DataContext вручную
+            mainWindow.DataContext = viewModel;
+            await _logger.LogDebugAsync("OnStartup: DataContext установлен.");
+
             mainWindow.Show();
             await _logger.LogInfoAsync("MainWindow создано и показано.");
         }
         catch (Exception ex)
         {
-            await _logger.LogErrorAsync("Критическая ошибка при создании/отображении MainWindow", ex);
-            MessageBox.Show($"Критическая ошибка при инициализации главного окна: {ex.Message}", "Ошибка UI", MessageBoxButton.OK, MessageBoxImage.Error);
+            await _logger.LogErrorAsync("Критическая ошибка во время OnStartup", ex); // Уточнено сообщение
+            MessageBox.Show($"Критическая ошибка при инициализации приложения: {ex.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(-1);
         }
-
-        base.OnStartup(e);
     }
 
     private async void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

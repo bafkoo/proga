@@ -15,23 +15,41 @@ public class FileLogger : IFileLogger
 
     public FileLogger()
     {
+        string logDirectory = null;
         try
         {
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            var logDirectory = Path.Combine(appDir, "Logs");
-            Debug.WriteLine($"[FileLogger] Вычисленная директория логов: {logDirectory}");
-            Directory.CreateDirectory(logDirectory);
-            Debug.WriteLine($"[FileLogger] Директория логов создана (или уже существует).");
+            logDirectory = Path.Combine(appDir, "Logs");
+            Debug.WriteLine($"[FileLogger] Планируемая директория логов: {logDirectory}");
 
-            _logPath = Path.Combine(logDirectory, $"log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-            Debug.WriteLine($"[FileLogger] Полный путь к файлу лога: {_logPath}");
+            try 
+            {
+                Directory.CreateDirectory(logDirectory);
+                Debug.WriteLine($"[FileLogger] Директория логов создана (или уже существует): {logDirectory}");
+                CleanupOldLogs(logDirectory);
+            }
+            catch (Exception ioEx)
+            {
+                Debug.WriteLine($"[FileLogger I/O ERROR] Ошибка при создании/очистке директории логов {logDirectory}: {ioEx}");
+                logDirectory = null;
+            }
 
-            CleanupOldLogs(logDirectory);
+            if (logDirectory != null)
+            {
+                 _logPath = Path.Combine(logDirectory, $"log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                 Debug.WriteLine($"[FileLogger] Полный путь к файлу лога: {_logPath}");
+                 WriteToFileAsync("[INFO] FileLogger инициализирован успешно.").Wait(); 
+            }
+            else
+            {
+                 _logPath = null;
+                 Debug.WriteLine("[FileLogger WARNING] Log path не установлен из-за предыдущей ошибки I/O.");
+            }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[FileLogger ERROR] Ошибка в конструкторе FileLogger: {ex}");
-            throw;
+            Debug.WriteLine($"[FileLogger FATAL ERROR] Непредвиденная ошибка в конструкторе FileLogger: {ex}");
+            _logPath = null;
         }
     }
 
