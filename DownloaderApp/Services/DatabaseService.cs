@@ -88,5 +88,36 @@ namespace DownloaderApp.Services
             }
         }
 
+        public async Task<string> InsertDocumentMetaPathArchiveAsync(string connectionString, IDictionary<string, object> parameters, CancellationToken token)
+        {
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync(token);
+                using (var cmd = new SqlCommand("documentMetaPathArchiveInsert", connection))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    cmd.Parameters.AddWithValue("@documentMetaPathID", parameters["@documentMetaPathID"]);
+                    cmd.Parameters.AddWithValue("@documentMetaID", parameters["@documentMetaID"]);
+                    cmd.Parameters.AddWithValue("@processID", parameters["@processID"]);
+                    cmd.Parameters.AddWithValue("@urlID", parameters["@urlID"]);
+                    cmd.Parameters.AddWithValue("@urlIDText", parameters["@urlIDText"]);
+                    cmd.Parameters.AddWithValue("@fileName", parameters["@fileName"]);
+                    cmd.Parameters.AddWithValue("@expName", parameters["@expName"]);
+                    cmd.Parameters.AddWithValue("@fileSize", parameters["@fileSize"]);
+                    cmd.Parameters.AddWithValue("@databaseName", parameters["@databaseName"]);
+
+                    var outParam = new SqlParameter("@newFileName", System.Data.SqlDbType.VarChar, 250)
+                    {
+                        Direction = System.Data.ParameterDirection.Output
+                    };
+                    cmd.Parameters.Add(outParam);
+
+                    await cmd.ExecuteNonQueryAsync(token);
+                    return outParam.Value?.ToString() ?? string.Empty;
+                }
+            }
+        }
+
     }
 } 

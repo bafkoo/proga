@@ -1318,7 +1318,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             }
         }
         string fileExtension = Path.GetExtension(originalFileName);
-        string newFileName = $"{documentMetaID}{fileExtension}";
+        var newFileNameInner = GetUniqueFileName(originalFileName);
         // --- Удаляем самостоятельное формирование пути ---
         if (string.IsNullOrWhiteSpace(pathDirectory) || string.IsNullOrWhiteSpace(originalFileName))
         {
@@ -1330,8 +1330,8 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             await _fileLogger.LogErrorAsync($"pathDirectory или fileName отсутствуют для файла (ID: {documentMetaID})");
             return;
         }
-        await _fileLogger.LogDebugAsync($"DEBUG: Формируем путь для сохранения: Path.Combine('{pathDirectory}', '{newFileName}')");
-        string fileDocument = Path.Combine(pathDirectory, newFileName);
+        await _fileLogger.LogDebugAsync($"DEBUG: Формируем путь для сохранения: Path.Combine('{pathDirectory}', '{newFileNameInner}')");
+        string fileDocument = Path.Combine(pathDirectory, newFileNameInner);
 
         bool shouldUpdateUI = _processedFilesCounter % 5 == 0; 
 
@@ -1523,56 +1523,84 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
                     bool skipSuccessUpdate = false;
 
-                    // --- Обработка архивов (если нужно) --- 
-                    // ... (логика обработки архивов, если включена) ...
-                    // if (isArchive) { ... } 
-                    // else // Если это не архив (обычный файл)
-                    
-                    // Обновление статуса в БД
-                    if (!skipSuccessUpdate)
+                    // --- Обработка архивов (рекурсивно) ---
+                    if (fileExtension.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
+                        fileExtension.Equals(".rar", StringComparison.OrdinalIgnoreCase) ||
+                        fileExtension.Equals(".7z", StringComparison.OrdinalIgnoreCase) ||
+                        fileExtension.Equals(".tar", StringComparison.OrdinalIgnoreCase) ||
+                        fileExtension.Equals(".gz", StringComparison.OrdinalIgnoreCase) ||
+                        fileExtension.Equals(".bz2", StringComparison.OrdinalIgnoreCase))
                     {
-                        int idToUpdateFlag = documentMetaID; // Используем documentMetaID для обновления флага
-                        await _fileLogger.LogDebugAsync($"DEBUG: Флаг isProcessed будет обновлен для ID: {idToUpdateFlag}. skipSuccessUpdate={skipSuccessUpdate}.");
-                        await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, idToUpdateFlag, token);
-
-                        if (shouldUpdateUI)
+                        string extractDir = Path.Combine(Path.GetDirectoryName(fileDocument), Path.GetFileNameWithoutExtension(fileDocument));
+                        Directory.CreateDirectory(extractDir);
+                        var extractedFiles = _archiveService.ExtractArchiveRecursive(fileDocument, extractDir, true);
+                        foreach (var extractedFile in extractedFiles)
                         {
-                            AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
-                            await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
+                            var archiveParams = new Dictionary<string, object>
+                            {
+                                {"@documentMetaPathID", 0},
+                                {"@documentMetaID", documentMetaID},
+                                {"@processID", 0},
+                                {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
+                                {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
+                                {"@fileName", Path.GetFileName(extractedFile)},
+                                {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
+                                {"@fileSize", new System.IO.FileInfo(extractedFile).Length},
+                                {"@databaseName", databaseName}
+                            };
+                            var configService = new ConfigurationService();
+                            var defaultConnectionString = configService.GetDefaultConnectionString();
+                            string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
+                            await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathArchiveAsync: Вызов процедуры documentMetaPathArchiveInsert для архива ID: {documentMetaID}, файл: {extractedFile}, новое имя: {newFileName}");
                         }
-
-                        // --- Вызов процедуры регистрации в IAC ---
-                        var parameters = new Dictionary<string, object>
-                        {
-                            {"@databaseName", databaseName},
-                            {"@computerName", GetValueOrDefault<string>(row, "computerName")},
-                            {"@directoryName", GetValueOrDefault<string>(row, "directoryName")},
-                            {"@themeID", themeId},
-                            {"@year", publishDate.Year},
-                            {"@month", publishDate.Month},
-                            {"@day", publishDate.Day},
-                            {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
-                            {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
-                            {"@documentMetaID", documentMetaID},
-                            {"@processID", 0},
-                            {"@fileName", originalFileName},
-                            {"@suffixName", ""},
-                            {"@expName", GetValueOrDefault<string>(row, "expName")},
-                            {"@docDescription", GetValueOrDefault<string>(row, "docDescription")},
-                            {"@fileSize", new System.IO.FileInfo(fileDocument).Length},
-                            {"@srcID", srcID},
-                            {"@usrID", 0},
-                            {"@documentMetaPathID", 0}
-                        };
-                        var configService = new ConfigurationService();
-                        var defaultConnectionString = configService.GetDefaultConnectionString();
-                        await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, parameters, token);
-                        await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathAsync: Вызов процедуры documentMetaPathInsert для ID: {documentMetaID} завершен.");
                     }
+                    else
+                    {
+                        // Обновление статуса в БД и регистрация обычного файла
+                        if (!skipSuccessUpdate)
+                        {
+                            int idToUpdateFlag = documentMetaID; // Используем documentMetaID для обновления флага
+                            await _fileLogger.LogDebugAsync($"DEBUG: Флаг isProcessed будет обновлен для ID: {idToUpdateFlag}. skipSuccessUpdate={skipSuccessUpdate}.");
+                            await _databaseService.UpdateDownloadFlagAsync(targetDbConnectionString, idToUpdateFlag, token);
 
+                            if (shouldUpdateUI)
+                            {
+                                AddLogMessage($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.", "Success", fileDocument);
+                                await _fileLogger.LogInfoAsync($"Файл '{originalFileName}' (ID: {idToUpdateFlag}) успешно обработан.");
+                            }
+
+                            // --- Вызов процедуры регистрации в IAC ---
+                            var parameters = new Dictionary<string, object>
+                            {
+                                {"@databaseName", databaseName},
+                                {"@computerName", GetValueOrDefault<string>(row, "computerName")},
+                                {"@directoryName", GetValueOrDefault<string>(row, "directoryName")},
+                                {"@themeID", themeId},
+                                {"@year", publishDate.Year},
+                                {"@month", publishDate.Month},
+                                {"@day", publishDate.Day},
+                                {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
+                                {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
+                                {"@documentMetaID", documentMetaID},
+                                {"@processID", 0},
+                                {"@fileName", originalFileName},
+                                {"@suffixName", ""},
+                                {"@expName", GetValueOrDefault<string>(row, "expName")},
+                                {"@docDescription", GetValueOrDefault<string>(row, "docDescription")},
+                                {"@fileSize", new System.IO.FileInfo(fileDocument).Length},
+                                {"@srcID", srcID},
+                                {"@usrID", 0},
+                                {"@documentMetaPathID", 0}
+                            };
+                            var configService = new ConfigurationService();
+                            var defaultConnectionString = configService.GetDefaultConnectionString();
+                            await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, parameters, token);
+                            await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathAsync: Вызов процедуры documentMetaPathInsert для ID: {documentMetaID} завершен.");
+                        }
+                    }
                     return;
                 }
-                catch (Exception ex) {
+                catch (Exception) {
                     }
             }
             else // Если flProv == true
@@ -1581,10 +1609,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 return; 
             }
         }
-        catch (Exception ex) // Внешний catch для ProcessFileAsync
+        catch (OperationCanceledException) // Внешний catch для ProcessFileAsync
         {
            // ... (логирование основной ошибки) ...
-            if (ex is OperationCanceledException) throw;
+           throw;
+        }
+        catch (Exception) // Внешний catch для ProcessFileAsync
+        {
+           // ... (логирование основной ошибки) ...
             if (!IgnoreDownloadErrors) throw; // Пробрасываем, если не игнорируем
             return; // Иначе просто выходим
         }
@@ -1984,6 +2016,14 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             catch { return null; } // Другие ошибки конвертации
         }
         return null;
+    }
+
+    // Добавляю метод для получения уникального имени файла
+    private string GetUniqueFileName(string originalFileName)
+    {
+        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFileName);
+        string extension = Path.GetExtension(originalFileName);
+        return $"{fileNameWithoutExt}_{Guid.NewGuid()}{extension}";
     }
 
     #endregion
