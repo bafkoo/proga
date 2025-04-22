@@ -97,7 +97,6 @@ namespace DownloaderApp.Services
                 {
                     cmd.CommandType = CommandType.StoredProcedure;
 
-                    cmd.Parameters.AddWithValue("@documentMetaPathID", parameters["@documentMetaPathID"]);
                     cmd.Parameters.AddWithValue("@documentMetaID", parameters["@documentMetaID"]);
                     cmd.Parameters.AddWithValue("@processID", parameters["@processID"]);
                     cmd.Parameters.AddWithValue("@urlID", parameters["@urlID"]);

@@ -1887,12 +1887,15 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
                 {"@fileSize", fileInfo.Length},
                 {"@srcID", 0},
-                {"@usrID", 0},
-                {"@documentMetaPathID", 0}
+                {"@usrID", 0}
             };
             // urlID/urlIDText логика
-            var urlID = GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value;
-            var urlIDText = GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty;
+            string urlID = row.Table.Columns.Contains("urlID") && row["urlID"] != DBNull.Value
+                ? row["urlID"].ToString()
+                : null;
+            string urlIDText = row.Table.Columns.Contains("urlIDText") && row["urlIDText"] != DBNull.Value
+                ? row["urlIDText"].ToString()
+                : null;
             if (databaseName == "fcsNotification") {
                 insertParams = new Dictionary<string, object>
                 {
@@ -1903,6 +1906,7 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     {"@year", publishDate.Year},
                     {"@month", publishDate.Month},
                     {"@day", publishDate.Day},
+                    {"@urlID", DBNull.Value},
                     {"@urlIDText", urlIDText},
                     {"@documentMetaID", documentMetaID},
                     {"@processID", 0},
@@ -1919,18 +1923,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
 
             var configService = new ConfigurationService();
             var defaultConnectionString = configService.GetDefaultConnectionString();
-            int documentMetaPathID = await _databaseService.InsertDocumentMetaPathAsyncWithId(defaultConnectionString, insertParams, token);
-            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Получен documentMetaPathID: {documentMetaPathID}");
+            await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, insertParams, token);
 
             var archiveParams = new Dictionary<string, object>
             {
-                {"@documentMetaPathID", documentMetaPathID},
                 {"@documentMetaID", documentMetaID},
                 {"@processID", 0},
                 {"@fileName", fileInfo.Name},
                 {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
                 {"@fileSize", fileInfo.Length},
-                {"@databaseName", databaseName}
+                {"@databaseName", databaseName},
+                {"@urlID", databaseName == "fcsNotification" ? DBNull.Value : (object)(urlID ?? (object)DBNull.Value)},
+                {"@urlIDText", databaseName == "fcsNotification" ? (object)(urlIDText ?? (object)DBNull.Value) : DBNull.Value}
             };
             // urlID/urlIDText логика для archiveParams
             if (databaseName == "fcsNotification" || databaseName == "purchaseNotice" || databaseName == "contract" || databaseName == "requestQuotation")
@@ -1939,7 +1943,12 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 archiveParams.Add("@urlID", urlID);
 
             await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: " + string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}")));
+            await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: {string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}"))}");
             string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
+            if (string.IsNullOrWhiteSpace(newFileName))
+            {
+                await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}] ВНИМАНИЕ: newFileName пустой после InsertDocumentMetaPathArchiveAsync!");
+            }
             await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Новое имя файла из БД: '{newFileName}'");
             if (!string.IsNullOrWhiteSpace(newFileName))
             {
