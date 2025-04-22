@@ -27,6 +27,11 @@ public partial class App : Application
     {
         DispatcherUnhandledException += App_DispatcherUnhandledException;
 
+        // Явно создаём папку logs, если её нет
+        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        if (!Directory.Exists(logDir))
+            Directory.CreateDirectory(logDir);
+
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices((context, services) =>
             {

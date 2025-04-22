@@ -272,10 +272,6 @@ C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\GeneratedInternalTypeHelper.g.cs
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_MarkupCompile.cache
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader_MarkupCompile.lref
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\App.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\MainWindow.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\SettingsWindow.baml
-C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.g.resources
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.AssemblyInfoInputs.cache
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.AssemblyInfo.cs
@@ -397,3 +393,7 @@ C:\Users\Krasoft2025\proga\DownloaderApp\bin\Debug\net9.0-windows\runtimes\win\l
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Download.09E55029.Up2Date
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\DownloaderApp.genruntimeconfig.cache
 C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\ref\FileDownloader.dll
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\App.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\MainWindow.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\Views\SettingsWindow.baml
+C:\Users\Krasoft2025\proga\DownloaderApp\obj\Debug\net9.0-windows\FileDownloader.g.resources
