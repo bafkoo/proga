@@ -45,27 +45,44 @@ namespace DownloaderApp.Services
                 // Убедимся, что директория назначения существует
                 Directory.CreateDirectory(destinationPath);
 
-                var readerOptions = new ReaderOptions { LookForHeader = true }; // Помогает определить тип
+                var readerOptions = new ReaderOptions { LookForHeader = true, ArchiveEncoding = new SharpCompress.Common.ArchiveEncoding { Default = System.Text.Encoding.GetEncoding("cp866") } };
                 var extractionOptions = new ExtractionOptions
                 {
                     ExtractFullPath = true,
                     Overwrite = overwriteFiles
                 };
 
-                using (Stream stream = File.OpenRead(archivePath))
-                using (var reader = ArchiveFactory.Open(stream, readerOptions)) // Автоопределение типа
+                bool triedUtf8 = false;
+            retryExtract:
+                try
                 {
-                    _logger.Info($"Тип архива определен как: {reader.Type}");
-                    foreach (var entry in reader.Entries)
+                    using (Stream stream = File.OpenRead(archivePath))
+                    using (var reader = ArchiveFactory.Open(stream, readerOptions))
                     {
-                        if (!entry.IsDirectory) // Распаковываем только файлы
+                        _logger.Info($"Тип архива определен как: {reader.Type}");
+                        foreach (var entry in reader.Entries)
                         {
-                            string extractedFilePath = Path.Combine(destinationPath, entry.Key);
-                            _logger.Debug($"Распаковка файла: {entry.Key} -> {extractedFilePath}");
-                            entry.WriteToDirectory(destinationPath, extractionOptions);
-                            extractedFiles.Add(extractedFilePath); // Добавляем путь к файлу в список
+                            if (!entry.IsDirectory)
+                            {
+                                string extractedFilePath = Path.Combine(destinationPath, entry.Key);
+                                _logger.Debug($"Распаковка файла: {entry.Key} -> {extractedFilePath}");
+                                entry.WriteToDirectory(destinationPath, extractionOptions);
+                                extractedFiles.Add(extractedFilePath);
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    if (!triedUtf8)
+                    {
+                        _logger.Warn($"Fallback: повторная распаковка с кодировкой UTF8 для архива: {archivePath}");
+                        readerOptions = new ReaderOptions { LookForHeader = true, ArchiveEncoding = new SharpCompress.Common.ArchiveEncoding { Default = System.Text.Encoding.UTF8 } };
+                        triedUtf8 = true;
+                        goto retryExtract;
+                    }
+                    _logger.Error(ex, $"Ошибка при распаковке архива: {archivePath}");
+                    throw;
                 }
 
                 _logger.Info($"Архив успешно распакован: {archivePath}. Извлечено файлов: {extractedFiles.Count}");

@@ -1539,15 +1539,32 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                         fileExtension.Equals(".bz2", StringComparison.OrdinalIgnoreCase))
                     {
                         string extractDir = Path.Combine(Path.GetDirectoryName(fileDocument), Path.GetFileNameWithoutExtension(fileDocument));
-                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Получена директория для распаковки: '{extractDir}' для файла '{originalFileName}'.");
+                        var archiveStart = DateTime.Now;
+                        await _fileLogger.LogInfoAsync($"\n=== [ARCHIVE] Начата обработка архива: '{originalFileName}' ===");
+                        await _fileLogger.LogInfoAsync($"Путь к архиву: {fileDocument}");
                         Directory.CreateDirectory(extractDir);
-                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Директория для распаковки создана или существует: '{extractDir}'.");
                         var extractedFiles = _archiveService.ExtractArchiveRecursive(fileDocument, extractDir, true);
-                        await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Распаковка завершена. Найдено {extractedFiles.Count()} файлов.");
-                        await _fileLogger.LogDebugAsync("ARCHIVE_DETAIL: Начало обработки распакованных файлов.");
+                        await _fileLogger.LogInfoAsync($"Распаковка завершена. Извлечено файлов: {extractedFiles.Count()}");
+                        if (CurrentSettings.DeleteArchiveAfterExtraction)
+                        {
+                            try
+                            {
+                                File.Delete(fileDocument);
+                                await _fileLogger.LogInfoAsync($"Архив удалён после распаковки по настройке.");
+                            }
+                            catch (Exception ex)
+                            {
+                                await _fileLogger.LogErrorAsync($"Ошибка при удалении архива: {ex.Message}");
+                            }
+                        }
+                        int fileIdx = 1, okCount = 0, errCount = 0;
                         foreach (var extractedFile in extractedFiles)
                         {
-                            await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Обработка распакованного файла: '{extractedFile}', размер: {new FileInfo(extractedFile).Length} байт.");
+                            var fileInfo = new FileInfo(extractedFile);
+                            bool suspicious = fileInfo.Name.Any(c => c == '?' || c == '*' || c == '|' || c == '<' || c == '>' || c == '"' || c == ':' || c == '/');
+                            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Исходное имя: '{fileInfo.Name}', размер: {fileInfo.Length} байт");
+                            if (suspicious)
+                                await _fileLogger.LogWarningAsync($"[ARCHIVE][{fileIdx}] ВНИМАНИЕ: имя файла содержит подозрительные символы!");
                             var archiveParams = new Dictionary<string, object>
                             {
                                 {"@documentMetaPathID", 0},
@@ -1562,44 +1579,50 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                                 {"@day", publishDate.Day},
                                 {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
                                 {"@archiveNumber", 1},
-                                {"@fileName", Path.GetFileName(extractedFile)},
+                                {"@fileName", fileInfo.Name},
                                 {"@suffixName", ""},
                                 {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
                                 {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
-                                {"@fileSize", new System.IO.FileInfo(extractedFile).Length}
+                                {"@fileSize", fileInfo.Length}
                             };
                             var configService = new ConfigurationService();
                             var defaultConnectionString = configService.GetDefaultConnectionString();
                             string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
-                            await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathArchiveAsync: Вызов процедуры documentMetaPathArchiveInsert для архива ID: {documentMetaID}, файл: {extractedFile}, новое имя: {newFileName}");
-                            // Переименовываю физически извлечённый файл
-                            string newFilePath = Path.Combine(Path.GetDirectoryName(extractedFile), newFileName);
-                            await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Готовимся к переименованию. newFileName='{newFileName}', newFilePath='{newFilePath}', extractedFile='{extractedFile}'");
-                            if (string.IsNullOrWhiteSpace(newFileName))
+                            if (!string.IsNullOrWhiteSpace(newFileName))
                             {
-                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Возвращено пустое имя файла для '{extractedFile}'. Переименование не выполняется.");
-                                continue;
+                                string newFilePath = Path.Combine(Path.GetDirectoryName(extractedFile), newFileName);
+                                if (!File.Exists(newFilePath))
+                                {
+                                    try
+                                    {
+                                        Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
+                                        File.Move(extractedFile, newFilePath);
+                                        await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Переименован: '{fileInfo.Name}' -> '{newFileName}' (успех)");
+                                        okCount++;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Ошибка при переименовании '{fileInfo.Name}' -> '{newFileName}': {ex.Message}");
+                                        errCount++;
+                                    }
+                                }
+                                else
+                                {
+                                    await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Файл с именем '{newFileName}' уже существует. Переименование не выполнено.");
+                                    errCount++;
+                                }
                             }
-                            if (Path.GetExtension(newFileName) == string.Empty)
+                            else
                             {
-                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Возвращённое имя файла без расширения: '{newFileName}' для '{extractedFile}'.");
+                                await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Не удалось получить новое имя для '{fileInfo.Name}'. Переименование не выполнено.");
+                                errCount++;
                             }
-                            if (File.Exists(newFilePath))
-                            {
-                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Файл с именем '{newFilePath}' уже существует. Переименование не выполняется.");
-                                continue;
-                            }
-                            try
-                            {
-                                Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
-                                File.Move(extractedFile, newFilePath);
-                                await _fileLogger.LogDebugAsync($"ARCHIVE_DETAIL: Файл переименован: '{extractedFile}' -> '{newFilePath}'.");
-                            }
-                            catch (Exception ex)
-                            {
-                                await _fileLogger.LogErrorAsync($"ARCHIVE_DETAIL: Ошибка при переименовании файла '{extractedFile}' -> '{newFilePath}': {ex.Message}");
-                            }
+                            fileIdx++;
                         }
+                        var archiveEnd = DateTime.Now;
+                        var duration = archiveEnd - archiveStart;
+                        await _fileLogger.LogInfoAsync($"[ARCHIVE] Итог: успешно: {okCount}, с ошибками: {errCount}, длительность: {duration.TotalSeconds:F1} сек.");
+                        await _fileLogger.LogInfoAsync($"=== [ARCHIVE] Завершена обработка архива: '{originalFileName}' ===\n");
                     }
                     else
                     {
