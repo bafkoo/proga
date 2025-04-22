@@ -1565,11 +1565,10 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}/{extractedFiles.Count()}] Исходное имя: '{fileInfo.Name}', размер: {fileInfo.Length} байт");
                             if (suspicious)
                                 await _fileLogger.LogWarningAsync($"[ARCHIVE][{fileIdx}] ВНИМАНИЕ: имя файла содержит подозрительные символы!");
-                            var archiveParams = new Dictionary<string, object>
+
+                            // 1. Регистрируем файл и получаем documentMetaPathID
+                            var insertParams = new Dictionary<string, object>
                             {
-                                {"@documentMetaPathID", 0},
-                                {"@documentMetaID", documentMetaID},
-                                {"@processID", 0},
                                 {"@databaseName", databaseName},
                                 {"@computerName", GetValueOrDefault<string>(row, "computerName") ?? string.Empty},
                                 {"@directoryName", GetValueOrDefault<string>(row, "directoryName") ?? string.Empty},
@@ -1577,17 +1576,39 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                                 {"@year", publishDate.Year},
                                 {"@month", publishDate.Month},
                                 {"@day", publishDate.Day},
+                                {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
                                 {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
-                                {"@archiveNumber", 1},
+                                {"@documentMetaID", documentMetaID},
+                                {"@processID", 0},
                                 {"@fileName", fileInfo.Name},
                                 {"@suffixName", ""},
                                 {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
                                 {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
-                                {"@fileSize", fileInfo.Length}
+                                {"@fileSize", fileInfo.Length},
+                                {"@srcID", 0},
+                                {"@usrID", 0},
+                                {"@documentMetaPathID", 0}
                             };
                             var configService = new ConfigurationService();
                             var defaultConnectionString = configService.GetDefaultConnectionString();
+                            int documentMetaPathID = await _databaseService.InsertDocumentMetaPathAsyncWithId(defaultConnectionString, insertParams, token);
+                            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Получен documentMetaPathID: {documentMetaPathID}");
+
+                            // 2. Генерируем новое имя через ArchiveInsert
+                            var archiveParams = new Dictionary<string, object>
+                            {
+                                {"@documentMetaPathID", documentMetaPathID},
+                                {"@documentMetaID", documentMetaID},
+                                {"@processID", 0},
+                                {"@urlID", GetNullableValue<int>(row, "urlID") ?? (object)DBNull.Value},
+                                {"@urlIDText", GetValueOrDefault<string>(row, "urlIDText") ?? string.Empty},
+                                {"@fileName", fileInfo.Name},
+                                {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
+                                {"@fileSize", fileInfo.Length},
+                                {"@databaseName", databaseName}
+                            };
                             string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
+                            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Новое имя файла из БД: '{newFileName}'");
                             if (!string.IsNullOrWhiteSpace(newFileName))
                             {
                                 string newFilePath = Path.Combine(Path.GetDirectoryName(extractedFile), newFileName);

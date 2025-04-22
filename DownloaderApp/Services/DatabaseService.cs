@@ -119,5 +119,28 @@ namespace DownloaderApp.Services
             }
         }
 
+        public async Task<int> InsertDocumentMetaPathAsyncWithId(string iacConnectionString, IDictionary<string, object> parameters, CancellationToken token)
+        {
+            using (SqlConnection connection = new SqlConnection(iacConnectionString))
+            {
+                await connection.OpenAsync(token);
+                using (var cmd = new SqlCommand("documentMetaPathInsert", connection))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    foreach (var param in parameters)
+                    {
+                        cmd.Parameters.AddWithValue(param.Key, param.Value ?? DBNull.Value);
+                    }
+                    var outParam = new SqlParameter("@documentMetaPathID", System.Data.SqlDbType.Int)
+                    {
+                        Direction = System.Data.ParameterDirection.Output
+                    };
+                    cmd.Parameters.Add(outParam);
+                    await cmd.ExecuteNonQueryAsync(token);
+                    return outParam.Value != DBNull.Value ? Convert.ToInt32(outParam.Value) : 0;
+                }
+            }
+        }
+
     }
 } 
