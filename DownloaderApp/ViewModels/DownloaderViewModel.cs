@@ -1617,8 +1617,73 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                             };
                             var configService = new ConfigurationService();
                             var defaultConnectionString = configService.GetDefaultConnectionString();
+                            
+                            // --- Добавляем логирование ПЕРЕД вызовом --- 
+                            await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] Параметры для InsertDocumentMetaPathAsync: {string.Join("; ", parameters.Select(kv => $"{kv.Key}={kv.Value ?? "NULL"}"))}");
                             await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, parameters, token);
-                            await _fileLogger.LogSuccessAsync($"InsertDocumentMetaPathAsync: Вызов процедуры documentMetaPathInsert для ID: {documentMetaID} завершен.");
+
+                            // --- Корректируем параметры для InsertDocumentMetaPathArchiveAsync ---
+                            object urlIdValueForArchive = DBNull.Value;
+                            object urlIdTextValueForArchive = (databaseName == "fcsNotification") 
+                                                              ? (parameters["@urlIDText"] ?? (object)DBNull.Value) // Для fcsNotification берем исходный urlIDText
+                                                              : (parameters["@urlID"] ?? (object)DBNull.Value);    // Для остальных берем исходный СТРОКОВЫЙ urlID
+
+                            var archiveParams = new Dictionary<string, object>
+                            {
+                                {"@documentMetaID", documentMetaID},
+                                {"@processID", 0},
+                                {"@fileName", originalFileName},
+                                {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
+                                {"@fileSize", fileInfo.Length},
+                                {"@databaseName", databaseName},
+                                // --- Используем правильные значения ---
+                                {"@urlID", urlIdValueForArchive}, 
+                                {"@urlIDText", urlIdTextValueForArchive}
+                            };
+                            
+                            // Удаляем старую дублирующуюся логику urlID/urlIDText для archiveParams
+                            // if (databaseName == "fcsNotification" || databaseName == "purchaseNotice" || databaseName == "contract" || databaseName == "requestQuotation")
+                            //     archiveParams.Add("@urlIDText", urlIDText);
+                            // else
+                            //     archiveParams.Add("@urlID", urlID);
+
+                            await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: " + string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}")));
+                            await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: {string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}"))}");
+                            string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
+                            // --- Добавляем логирование полученного имени --- 
+                            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Получено новое имя файла из БД: '{newFileName}'");
+                            // --- Конец добавления ---
+                            if (string.IsNullOrWhiteSpace(newFileName))
+                            {
+                                await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}] ВНИМАНИЕ: newFileName пустой после InsertDocumentMetaPathArchiveAsync!");
+                            }
+                            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Новое имя файла из БД: '{newFileName}'");
+                            if (!string.IsNullOrWhiteSpace(newFileName))
+                            {
+                                string newFilePath = Path.Combine(Path.GetDirectoryName(extractedFile), newFileName);
+                                await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] Путь для переименования: '{extractedFile}' -> '{newFilePath}'");
+                                if (!File.Exists(newFilePath))
+                                {
+                                    try
+                                    {
+                                        Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
+                                        File.Move(extractedFile, newFilePath);
+                                        await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}/{totalFiles}] Переименован: '{fileInfo.Name}' -> '{newFileName}' (успех)");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{totalFiles}] Ошибка при переименовании '{fileInfo.Name}' -> '{newFileName}': {ex.Message}");
+                                    }
+                                }
+                                else
+                                {
+                                    await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{totalFiles}] Файл с именем '{newFileName}' уже существует. Переименование не выполнено.");
+                                }
+                            }
+                            else
+                            {
+                                await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}/{totalFiles}] Не удалось получить новое имя для '{fileInfo.Name}'. Переименование не выполнено.");
+                            }
                         }
                     }
                     return;
@@ -1896,6 +1961,18 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
             string urlIDText = row.Table.Columns.Contains("urlIDText") && row["urlIDText"] != DBNull.Value
                 ? row["urlIDText"].ToString()
                 : null;
+            // --- Добавляем логирование исходных значений ---
+            await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] Исходные значения из DataRow: urlID='{urlID}', urlIDText='{urlIDText}'");
+            // --- Конец добавления ---
+            
+            // --- Удаляем эти строки ---
+            // --- ИЗМЕНЕНИЕ НАЧАЛО ---
+            // object urlIdValue = GetNullableValue<int>(row, "urlID") ?? (object)0; // Используем 0 по умолчанию, если null
+            // --- Добавляем логирование значения после обработки ---
+            // await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] Значение urlIdValue (для @urlID, если не fcsNotification): {urlIdValue}");
+            // --- Конец добавления ---
+            // --- ИЗМЕНЕНИЕ КОНЕЦ ---
+
             if (databaseName == "fcsNotification") {
                 insertParams = new Dictionary<string, object>
                 {
@@ -1906,24 +1983,55 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                     {"@year", publishDate.Year},
                     {"@month", publishDate.Month},
                     {"@day", publishDate.Day},
-                    {"@urlID", DBNull.Value},
-                    {"@urlIDText", urlIDText},
+                    {"@urlID", DBNull.Value}, // Для fcsNotification оставляем DBNull
+                    {"@urlIDText", urlIDText ?? (object)DBNull.Value}, // Передаем urlIDText или DBNull
                     {"@documentMetaID", documentMetaID},
                     {"@processID", 0},
                     {"@fileName", fileInfo.Name},
                     {"@suffixName", ""},
                     {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
                     {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
-                    {"@fileSize", fileInfo.Length}
+                    {"@fileSize", fileInfo.Length},
+                    {"@srcID", 0},
+                    {"@usrID", 0}
                 };
             } else {
-                insertParams.Add("@urlID", urlID);
-                insertParams.Add("@urlIDText", urlIDText);
+                // Заменяем способ добавления параметров для случая не fcsNotification
+                // Вместо просто добавления параметров в неполный словарь, создаем полный словарь
+                insertParams = new Dictionary<string, object>
+                {
+                    {"@databaseName", databaseName},
+                    {"@computerName", GetValueOrDefault<string>(row, "computerName") ?? string.Empty},
+                    {"@directoryName", GetValueOrDefault<string>(row, "directoryName") ?? string.Empty},
+                    {"@themeID", themeId},
+                    {"@year", publishDate.Year},
+                    {"@month", publishDate.Month},
+                    {"@day", publishDate.Day},
+                    {"@urlID", DBNull.Value}, // Пусть процедура ищет int ID
+                    {"@urlIDText", urlID ?? (object)DBNull.Value}, // Передаем исходный СТРОКОВЫЙ urlID
+                    {"@documentMetaID", documentMetaID},
+                    {"@processID", 0},
+                    {"@fileName", fileInfo.Name},
+                    {"@suffixName", ""},
+                    {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
+                    {"@docDescription", GetValueOrDefault<string>(row, "docDescription") ?? string.Empty},
+                    {"@fileSize", fileInfo.Length},
+                    {"@srcID", 0},
+                    {"@usrID", 0}
+                };
             }
 
             var configService = new ConfigurationService();
             var defaultConnectionString = configService.GetDefaultConnectionString();
             await _databaseService.InsertDocumentMetaPathAsync(defaultConnectionString, insertParams, token);
+
+            // --- Корректируем параметры для InsertDocumentMetaPathArchiveAsync --- 
+            // Для @urlID всегда передаем DBNull.Value, чтобы процедура сама нашла int ID
+            object urlIdValueForArchive = DBNull.Value;
+            // Для @urlIDText используем разную логику в зависимости от databaseName
+            object urlIdTextValueForArchive = (databaseName == "fcsNotification") 
+                                              ? (urlIDText ?? (object)DBNull.Value) // Для fcsNotification берем исходный urlIDText
+                                              : (urlID ?? (object)DBNull.Value);    // Для остальных берем исходный СТРОКОВЫЙ urlID
 
             var archiveParams = new Dictionary<string, object>
             {
@@ -1933,18 +2041,23 @@ public class DownloaderViewModel : ObservableObject, IDataErrorInfo
                 {"@expName", Path.GetExtension(extractedFile)?.TrimStart('.') ?? ""},
                 {"@fileSize", fileInfo.Length},
                 {"@databaseName", databaseName},
-                {"@urlID", databaseName == "fcsNotification" ? DBNull.Value : (object)(urlID ?? (object)DBNull.Value)},
-                {"@urlIDText", databaseName == "fcsNotification" ? (object)(urlIDText ?? (object)DBNull.Value) : DBNull.Value}
+                // --- Используем правильные значения ---
+                {"@urlID", urlIdValueForArchive}, 
+                {"@urlIDText", urlIdTextValueForArchive}
             };
-            // urlID/urlIDText логика для archiveParams
-            if (databaseName == "fcsNotification" || databaseName == "purchaseNotice" || databaseName == "contract" || databaseName == "requestQuotation")
-                archiveParams.Add("@urlIDText", urlIDText);
-            else
-                archiveParams.Add("@urlID", urlID);
+            
+            // Удаляем старую дублирующуюся логику urlID/urlIDText для archiveParams
+            // if (databaseName == "fcsNotification" || databaseName == "purchaseNotice" || databaseName == "contract" || databaseName == "requestQuotation")
+            //     archiveParams.Add("@urlIDText", urlIDText);
+            // else
+            //     archiveParams.Add("@urlID", urlID);
 
             await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: " + string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}")));
             await _fileLogger.LogDebugAsync($"[ARCHIVE][{fileIdx}] archiveParams: {string.Join(", ", archiveParams.Select(kv => $"{kv.Key}={kv.Value}"))}");
             string newFileName = await _databaseService.InsertDocumentMetaPathArchiveAsync(defaultConnectionString, archiveParams, token);
+            // --- Добавляем логирование полученного имени --- 
+            await _fileLogger.LogInfoAsync($"[ARCHIVE][{fileIdx}] Получено новое имя файла из БД: '{newFileName}'");
+            // --- Конец добавления ---
             if (string.IsNullOrWhiteSpace(newFileName))
             {
                 await _fileLogger.LogErrorAsync($"[ARCHIVE][{fileIdx}] ВНИМАНИЕ: newFileName пустой после InsertDocumentMetaPathArchiveAsync!");
